@@ -2,7 +2,6 @@ import torch
 from torch.nn import Parameter
 import torch.nn as nn
 import torch.nn.functional as F
-import warnings
 from functools import wraps
 
 
@@ -22,81 +21,81 @@ class BackHook(torch.nn.Module):
         return None
 
 
-class WeightDrop(nn.Module):
-    "A module that warps another layer in which some weights will be replaced by 0 during training."
+# class WeightDrop(nn.Module):
+#     "A module that warps another layer in which some weights will be replaced by 0 during training."
 
-    def __init__(self, module: nn.Module, weight_p: float, layer_names=['weight_hh_l0']):
-        super().__init__()
-        self.module, self.weight_p, self.layer_names = module, weight_p, layer_names
-        for layer in self.layer_names:
-            # Makes a copy of the weights of the selected layers.
-            w = getattr(self.module, layer)
-            self.register_parameter(f'{layer}_raw', nn.Parameter(w.data))
-            self.module._parameters[layer] = F.dropout(w, p=self.weight_p, training=False)
-
-    def _setweights(self):
-        "Apply dropout to the raw weights."
-        for layer in self.layer_names:
-            raw_w = getattr(self, f'{layer}_raw')
-            self.module._parameters[layer] = F.dropout(raw_w, p=self.weight_p, training=self.training)
-
-    def forward(self, *args):
-        self._setweights()
-        with warnings.catch_warnings():
-            # To avoid the warning that comes because the weights aren't flattened.
-            warnings.simplefilter("ignore")
-            return self.module.forward(*args)
-
-    def reset(self):
-        for layer in self.layer_names:
-            raw_w = getattr(self, f'{layer}_raw')
-            self.module._parameters[layer] = F.dropout(raw_w, p=self.weight_p, training=False)
-        if hasattr(self.module, 'reset'):
-            self.module.reset()
-
-# class WeightDrop(torch.nn.Module):
-#     """
-#     Implements drop-connect, as per Merity et al https://arxiv.org/abs/1708.02182
-#     """
-
-#     def __init__(self, module, weights, dropout=0, variational=False):
-#         super(WeightDrop, self).__init__()
-#         self.module = module
-#         self.weights = weights
-#         self.dropout = dropout
-#         self.variational = variational
-#         self._setup()
-#         self.hooker = BackHook(self._backward)
-
-#     def _setup(self):
-#         for name_w in self.weights:
-#             print('Applying weight drop of {} to {}'.format(self.dropout, name_w))
-#             w = getattr(self.module, name_w)
-#             self.register_parameter(name_w + '_raw', Parameter(w.data))
+#     def __init__(self, module: nn.Module, weight_p: float, layer_names=['weight_hh_l0']):
+#         super().__init__()
+#         self.module, self.weight_p, self.layer_names = module, weight_p, layer_names
+#         for layer in self.layer_names:
+#             # Makes a copy of the weights of the selected layers.
+#             w = getattr(self.module, layer)
+#             self.register_parameter(f'{layer}_raw', nn.Parameter(w.data))
+#             self.module._parameters[layer] = F.dropout(w, p=self.weight_p, training=False)
 
 #     def _setweights(self):
-#         for name_w in self.weights:
-#             raw_w = getattr(self, name_w + '_raw')
-#             if self.training:
-#                 mask = raw_w.new_ones((raw_w.size(0), 1))
-#                 mask = torch.nn.functional.dropout(mask, p=self.dropout, training=True)
-#                 w = mask.expand_as(raw_w) * raw_w
-#                 setattr(self, name_w + "_mask", mask)
-#             else:
-#                 w = raw_w
-#             rnn_w = getattr(self.module, name_w)
-#             rnn_w.data.copy_(w)
-
-#     def _backward(self):
-#         # transfer gradients from embeddedRNN to raw params
-#         for name_w in self.weights:
-#             raw_w = getattr(self, name_w + '_raw')
-#             rnn_w = getattr(self.module, name_w)
-#             raw_w.grad = rnn_w.grad * getattr(self, name_w + "_mask")
+#         "Apply dropout to the raw weights."
+#         for layer in self.layer_names:
+#             raw_w = getattr(self, f'{layer}_raw')
+#             self.module._parameters[layer] = F.dropout(raw_w, p=self.weight_p, training=self.training)
 
 #     def forward(self, *args):
 #         self._setweights()
-#         return self.module(*self.hooker(*args))
+#         with warnings.catch_warnings():
+#             # To avoid the warning that comes because the weights aren't flattened.
+#             warnings.simplefilter("ignore")
+#             return self.module.forward(*args)
+
+#     def reset(self):
+#         for layer in self.layer_names:
+#             raw_w = getattr(self, f'{layer}_raw')
+#             self.module._parameters[layer] = F.dropout(raw_w, p=self.weight_p, training=False)
+#         if hasattr(self.module, 'reset'):
+#             self.module.reset()
+
+class WeightDrop(torch.nn.Module):
+    """
+    Implements drop-connect, as per Merity et al https://arxiv.org/abs/1708.02182
+    """
+
+    def __init__(self, module, weights, dropout=0, variational=False):
+        super(WeightDrop, self).__init__()
+        self.module = module
+        self.weights = weights
+        self.dropout = dropout
+        self.variational = variational
+        self._setup()
+        self.hooker = BackHook(self._backward)
+
+    def _setup(self):
+        for name_w in self.weights:
+            # print('Applying weight drop of {} to {}'.format(self.dropout, name_w))
+            w = getattr(self.module, name_w)
+            self.register_parameter(name_w + '_raw', Parameter(w.data))
+
+    def _setweights(self):
+        for name_w in self.weights:
+            raw_w = getattr(self, name_w + '_raw')
+            if self.training:
+                mask = raw_w.new_ones((raw_w.size(0), 1))
+                mask = torch.nn.functional.dropout(mask, p=self.dropout, training=True)
+                w = mask.expand_as(raw_w) * raw_w
+                setattr(self, name_w + "_mask", mask)
+            else:
+                w = raw_w
+            rnn_w = getattr(self.module, name_w)
+            rnn_w.data.copy_(w)
+
+    def _backward(self):
+        # transfer gradients from embeddedRNN to raw params
+        for name_w in self.weights:
+            raw_w = getattr(self, name_w + '_raw')
+            rnn_w = getattr(self.module, name_w)
+            raw_w.grad = rnn_w.grad * getattr(self, name_w + "_mask")
+
+    def forward(self, *args):
+        self._setweights()
+        return self.module(*self.hooker(*args))
 
 
 # class WeightDrop(torch.nn.Module):
