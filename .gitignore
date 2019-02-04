@@ -1,3 +1,10 @@
+# Project spesific
+log/
+pickle/
+amazon/
+data/
+export/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
