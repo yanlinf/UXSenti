@@ -1,6 +1,7 @@
 import torch
 import os
 import json
+import numpy as np
 import argparse
 from .vocab import *
 
@@ -30,22 +31,38 @@ def bool_flag(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def load_lm_corpus(path, vocab, encoding='utf-8'):
+def load_lm_corpus(path, vocab, encoding='utf-8', random_state=-1):
+    if random_state < 0:
+        # first pass: count the number of tokens
+        with open(path, 'r', encoding=encoding) as f:
+            ntokens = 0
+            for line in f:
+                words = line.rstrip().split() + [EOS_TOK]
+                ntokens += len(words)
 
-    # first pass: count the number of tokens
-    with open(path, 'r', encoding=encoding) as f:
-        ntokens = 0
-        for line in f:
-            words = line.rstrip().split() + [EOS_TOK]
-            ntokens += len(words)
+        # second pass: convert tokens to ids
+        with open(path, 'r', encoding=encoding) as f:
+            ids = torch.LongTensor(ntokens)
+            p = 0
+            for line in f:
+                words = line.rstrip().split() + [EOS_TOK]
+                for w in words:
+                    if w in vocab.w2idx:
+                        ids[p] = vocab.w2idx[w]
+                    else:
+                        ids[p] = vocab.w2idx[UNK_TOK]
+                    p += 1
 
-    # second pass: convert tokens to ids
-    with open(path, 'r', encoding=encoding) as f:
+    else:
+        with open(path, 'r', encoding=encoding) as f:
+            corpus = [line.rstrip() for line in f]
+
+        ntokens = sum(len(line.split()) for line in corpus)
         ids = torch.LongTensor(ntokens)
         p = 0
-        for line in f:
-            words = line.rstrip().split() + [EOS_TOK]
-            for w in words:
+        np.random.seed(random_state)
+        for i in np.random.permutation(len(corpus)):
+            for w in corpus[i].split():
                 if w in vocab.w2idx:
                     ids[p] = vocab.w2idx[w]
                 else:
@@ -65,10 +82,14 @@ def batchify(data, bsz):
     return data  # shape (size, batch_size)
 
 
-def get_batch(source, i, bptt, seq_len=None, evaluation=False):
+def get_batch(source, i, bptt, seq_len=None, evaluation=False, batch_first=False):
     assert isinstance(bptt, int)
 
     seq_len = min(seq_len if seq_len else bptt, len(source) - 1 - i)
-    data = source[i:i + seq_len]
-    target = source[i + 1:i + 1 + seq_len].view(-1)
+    if batch_first:
+        data = source[i:i + seq_len].t()
+        target = source[i + 1:i + 1 + seq_len].t().contiguous().view(-1)
+    else:
+        data = source[i:i + seq_len]
+        target = source[i + 1:i + 1 + seq_len].view(-1)
     return data, target
