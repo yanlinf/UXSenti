@@ -62,6 +62,14 @@ class Vocab(object):
         return self._idx2w
 
     @property
+    def stoi(self):
+        return self._w2idx
+
+    @property
+    def itos(self):
+        return self._idx2w
+
+    @property
     def counts(self):
         return self._counts
 
