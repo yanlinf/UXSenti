@@ -53,6 +53,9 @@ class Vocab(object):
     def __len__(self):
         return len(self._idx2w)
 
+    def __contains__(self, word):
+        return word in self._w2idx
+
     @property
     def w2idx(self):
         return self._w2idx
