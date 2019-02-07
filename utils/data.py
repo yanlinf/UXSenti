@@ -31,8 +31,16 @@ def bool_flag(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def load_lm_corpus(path, vocab, encoding='utf-8', random_state=-1):
-    if random_state < 0:
+def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
+    """
+    path: str
+    vocab: Vocab
+    encoding: str
+    random_state: int (optional)
+
+    returns: torch.LongTensor of shape (corpus_size,)
+    """
+    if random_state is None:
         # first pass: count the number of tokens
         with open(path, 'r', encoding=encoding) as f:
             ntokens = 0
@@ -70,6 +78,28 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=-1):
                 p += 1
 
     return ids
+
+
+def load_dictionary(path, vocab, encoding='utf-8'):
+    """
+    path: str
+    vocab: Vocab
+    encoding: str
+
+    returns: np.ndarray of shape (size, 2)
+    """
+    dic = []
+    n = 0
+    with open(path, 'r', encoding='utf-8') as fin:
+        for line in fin:
+            n += 1
+            src, trg = line.rstrip().split()
+            if src in vocab and trg in vocab:
+                dic.append((vocab.w2idx[src], vocab.w2idx[trg]))
+
+    print('[{}] OOV rate = {:.4f}'.format(path, 1 - len(dic) / n))
+    dic = np.array(dic, dtype=np.int64)  # shape (dic_size, 2)
+    return dic
 
 
 def batchify(data, bsz):
