@@ -260,7 +260,7 @@ def main():
                 if args.alpha:  # AR regularization
                     loss = loss + sum(args.alpha * dropped_rnn_h.pow(2).mean() for dropped_rnn_h in dropped_rnn_hs[-1:])
                 if args.beta:  # TAR regularization
-                    loss = loss + sum(args.beta * (rnn_h[1:] - rnn_h[:-1]).pow(2).mean() for rnn_h in rnn_hs[-1:])
+                    loss = loss + sum(args.beta * (rnn_h[:, 1:] - rnn_h[:, :-1]).pow(2).mean() for rnn_h in rnn_hs[-1:])
                 loss.backward()
 
                 # clip gradients
