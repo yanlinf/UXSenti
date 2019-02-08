@@ -2,6 +2,7 @@ import torch
 import os
 import json
 import numpy as np
+import collections
 import argparse
 from .vocab import *
 
@@ -80,26 +81,28 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
     return ids
 
 
-def load_dictionary(path, vocab, encoding='utf-8'):
+def load_lexicon(path, src_vocab, trg_vocab, encoding='utf-8', verbose=False):
     """
     path: str
-    vocab: Vocab
+    src_vocab: Vocab
+    trg_vocab: Vocab
     encoding: str
+    verbose: bool
 
-    returns: np.ndarray of shape (size, 2)
+    returns: collections.defautldict
     """
-    dic = []
-    n = 0
+    lexicon = collections.defaultdict(set)
+    vocab = set()
     with open(path, 'r', encoding='utf-8') as fin:
         for line in fin:
-            n += 1
             src, trg = line.rstrip().split()
-            if src in vocab and trg in vocab:
-                dic.append((vocab.w2idx[src], vocab.w2idx[trg]))
+            if src in src_vocab and trg in trg_vocab:
+                lexicon[src_vocab.w2idx[src]].add(trg_vocab.w2idx[trg])
+            vocab.add(src)
+    if verbose:
+        print('[{}] OOV rate = {:.4f}'.format(path, 1 - len(lexicon) / len(vocab)))
 
-    print('[{}] OOV rate = {:.4f}'.format(path, 1 - len(dic) / n))
-    dic = np.array(dic, dtype=np.int64)  # shape (dic_size, 2)
-    return dic
+    return lexicon, len(vocab)
 
 
 def batchify(data, bsz):
