@@ -270,7 +270,7 @@ def main():
                 cur_loss = total_loss / args.log_interval
                 elapsed = time.time() - start_time
 
-                print('| epoch {:3d} | lm_lr {:05.5f} | ms/batch {:5.2f} | '
+                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:5.2f} | '
                       ' loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:5.2f} |'.format(
                           epoch, lm_optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                           cur_loss[0], math.exp(cur_loss[1]), math.exp(cur_loss[2]), cur_loss[3]))
@@ -282,10 +282,10 @@ def main():
                 val_loss = trainer.evaluate(src_val, trg_val)
                 acc = trainer.evaluate_bdi()
 
-                print('-' * 79)
-                print('| epoch {:3d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:5.2f} |'.format(
+                print('-' * 91)
+                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:5.2f} |'.format(
                     epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3]))
-                print('-' * 79)
+                print('-' * 91)
 
                 if val_loss[0] < best_val_loss[0]:
                     print('saving model to {}'.format(model_path))
@@ -293,7 +293,7 @@ def main():
                     best_val_loss = val_loss
 
     except KeyboardInterrupt:
-        print('-' * 79)
+        print('-' * 91)
         print('Keyboard Interrupte - Exiting from training early')
 
     ###############################################################################
@@ -307,10 +307,10 @@ def main():
     # print('\n\t'.join(pred_sents))
 
     # test_loss = evaluate(test_data, model, criterion, args.bptt)
-    # print('-' * 79)
+    # print('-' * 91)
     # print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
     #     test_loss, math.exp(test_loss), test_loss / math.log(2)))
-    # print('-' * 79)
+    # print('-' * 91)
 
 
 if __name__ == '__main__':
