@@ -100,7 +100,8 @@ def main():
     randomhash = str(time.time()).split('.')[0]
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
-    parser.add_argument('-lr', '--lr', type=float, default=0.004, help='initial learning rate')
+    parser.add_argument('--lm_lr', type=float, default=0.004, help='initial learning rate')
+    parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
     parser.add_argument('--dis_clip', type=float, default=0.1, help='gradient clipping')
     parser.add_argument('--alpha', type=float, default=2, help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
@@ -199,11 +200,11 @@ def main():
         criterion = nn.NLLLoss()
         params = set(src_lm.parameters()) | set(trg_lm.parameters())
         if args.optimizer == 'sgd':
-            lm_optimizer = torch.optim.SGD(params, lr=args.lr, weight_decay=args.wdecay)
-            optimizer = torch.optim.SGD(discriminator.parameters(), lr=args.lr, weight_decay=args.wdecay)
+            lm_optimizer = torch.optim.SGD(params, lr=args.lm_lr, weight_decay=args.wdecay)
+            dis_optimizer = torch.optim.SGD(discriminator.parameters(), lr=args.dis_lr, weight_decay=args.wdecay)
         if args.optimizer == 'adam':
-            lm_optimizer = torch.optim.Adam(params, lr=args.lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
-            dis_optimizer = torch.optim.Adam(discriminator.parameters(), lr=args.lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
+            lm_optimizer = torch.optim.Adam(params, lr=args.lm_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
+            dis_optimizer = torch.optim.Adam(discriminator.parameters(), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
         trainer = CrossLingualLanguageModelTrainer(src_lm, trg_lm, discriminator, lm_optimizer,
                                                    dis_optimizer, criterion, args.bptt, args.alpha,
@@ -233,9 +234,7 @@ def main():
     ###############################################################################
 
     # Loop over epochs.
-    lr = args.lr
     best_val_loss = np.array([float('inf')] * 4)
-
     print('Traning:')
     # At any point you can hit Ctrl + C to break out of training early.
     try:
