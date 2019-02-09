@@ -196,8 +196,9 @@ def main():
                                                           output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                           embed_p=args.dropoute, weight_p=args.wdrop)
 
-        dis_in_dim = (args.nlayers - 1) * args.nhid + args.emsize if args.tied else args.nlayers * args.nhid
-        discriminator = Discriminator(dis_in_dim, args.dis_nhid, 2, nlayers=args.dis_nlayers, dropout=0.1)
+        dis_in_dim = (args.nlayers - 1) * args.nhid + (args.emsize if args.tied else args.nlayers * args.nhid) + args.emsize
+        dis_out_dim = 1 if args.wgan else 2
+        discriminator = Discriminator(dis_in_dim, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
         criterion = nn.NLLLoss()
         params = set(src_lm.parameters()) | set(trg_lm.parameters())
         if args.optimizer == 'sgd':
