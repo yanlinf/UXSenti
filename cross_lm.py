@@ -83,6 +83,7 @@ def main():
     parser.add_argument('--dis_nhid', type=int, default=1024, help='number of hidden units per layer')
     parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
+    parser.add_argument('--wgan', type=bool_flag, nargs='?', const=True, default=False, help='use wgan')
 
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
@@ -100,10 +101,10 @@ def main():
     randomhash = str(time.time()).split('.')[0]
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
-    parser.add_argument('--lm_lr', type=float, default=0.004, help='initial learning rate')
+    parser.add_argument('--lm_lr', type=float, default=0.003, help='initial learning rate')
     parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
-    parser.add_argument('--dis_clip', type=float, default=0.1, help='gradient clipping')
+    parser.add_argument('--dis_clip', type=float, default=0.01, help='gradient clipping')
     parser.add_argument('--alpha', type=float, default=2, help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
     parser.add_argument('--beta', type=float, default=1, help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
     parser.add_argument('--lambd', type=float, default=1, help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
@@ -209,7 +210,7 @@ def main():
         trainer = CrossLingualLanguageModelTrainer(src_lm, trg_lm, discriminator, lm_optimizer,
                                                    dis_optimizer, criterion, args.bptt, args.alpha,
                                                    args.beta, args.lambd, args.lm_clip, args.dis_clip,
-                                                   lexicon, lex_sz)
+                                                   lexicon, lex_sz, args.wgan)
 
     if args.cuda:
         trainer.cuda()
@@ -270,7 +271,7 @@ def main():
                 elapsed = time.time() - start_time
 
                 print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:5.2f} | '
-                      ' loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:5.2f} |'.format(
+                      ' loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
                           epoch, lm_optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                           cur_loss[0], math.exp(cur_loss[1]), math.exp(cur_loss[2]), cur_loss[3]))
 
@@ -282,7 +283,7 @@ def main():
                 acc = trainer.evaluate_bdi()
 
                 print('-' * 91)
-                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:5.2f} |'.format(
+                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
                     epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3]))
                 print('-' * 91)
 
