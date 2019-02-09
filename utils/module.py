@@ -23,5 +23,5 @@ if __name__ == '__main__':
         rev = GradReverse(lambd)
         loss = rev(x * y).sum()
         loss.backward()
-        assert torch.eq(x.grad,y * -lambd).all()
+        assert torch.eq(x.grad, y * -lambd).all()
         print('[lambda = {:7.4f}] test {} passed'.format(lambd, i))
