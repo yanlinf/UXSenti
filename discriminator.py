@@ -23,7 +23,7 @@ class Discriminator(nn.Module):
             odim = self.hid_dim if i < self.nlayers else self.out_dim
             layers.append(nn.Linear(idim, odim))
             if i < self.nlayers:
-                layers.append(nn.LeakyReLU(0.2))
+                layers.append(nn.ReLU())
                 layers.append(nn.Dropout(self.dropout))
         self.layers = nn.Sequential(*layers)
 
