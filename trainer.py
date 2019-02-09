@@ -28,6 +28,8 @@ class CrossLingualLanguageModelTrainer(object):
         self.use_wgan = use_wgan
         self.rev_grad = GradReverse(self.lambd)
         self.is_cuda = next(self.src_lm.parameters()).is_cuda
+        self.src_encoder = list(self.src_lm.children())[0].encoder
+        self.trg_encoder = list(self.trg_lm.children())[0].encoder
 
     def compute_loss(self, src_x, src_y, trg_x, trg_y):
         bs, bptt = src_x.size()
@@ -41,14 +43,14 @@ class CrossLingualLanguageModelTrainer(object):
         trg_loss = trg_loss + sum(self.alpha * h.pow(2).mean() for h in trg_dropped_h[-1:])
         trg_loss = trg_loss + sum(self.beta * (h[:, 1:] - h[:, :-1]).pow(2).mean() for h in trg_h[-1:])
 
-        src_pooled = torch.cat([h.mean(1) for h in src_h], -1)
-        trg_pooled = torch.cat([h.mean(1) for h in trg_h], -1)
+        src_pooled = torch.cat([self.src_encoder(src_x).mean(1)] + [h.mean(1) for h in src_h], -1)
+        trg_pooled = torch.cat([self.trg_encoder(trg_x).mean(1)] + [h.mean(1) for h in trg_h], -1)
+
         dis_x = torch.cat([src_pooled, trg_pooled], 0)
-        dix_x = self.rev_grad(dis_x)
+        dis_x = self.rev_grad(dis_x)
         dis_y = torch.cat((torch.zeros(bs, dtype=torch.int64), torch.ones(bs, dtype=torch.int64)), -1)
         if self.is_cuda:
             dis_y = dis_y.cuda()
-
         dis_out = self.discriminator(dis_x)
 
         if self.use_wgan:
@@ -77,7 +79,8 @@ class CrossLingualLanguageModelTrainer(object):
         loss = src_loss + trg_loss + dis_loss
 
         if self.use_wgan:
-            (src_loss + trg_loss - dis_loss).backward()
+            # (src_loss + trg_loss - dis_loss).backward()
+            (src_loss + trg_loss).backward()
         else:
             loss.backward()
 
@@ -118,8 +121,8 @@ class CrossLingualLanguageModelTrainer(object):
         return total_losses / (length / bptt)
 
     def evaluate_bdi(self, batch_size=5000):
-        x_src = list(self.src_lm.children())[0].encoder.weight.data.cpu().numpy()
-        x_trg = list(self.trg_lm.children())[0].encoder.weight.data.cpu().numpy()
+        x_src = self.src_encoder.weight.data.cpu().numpy()
+        x_trg = self.trg_encoder.weight.data.cpu().numpy()
         acc = compute_nn_accuracy(x_src, x_trg, self.lexicon,
                                   batch_size=5000, lexicon_size=self.lexicon_size)
         return acc
