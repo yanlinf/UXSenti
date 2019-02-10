@@ -257,10 +257,10 @@ def main():
             bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
             seq_len = max(5, int(np.random.normal(bptt, 5)))
 
-            if src_p + seq_len > src_train.size(0):
+            if src_p + seq_len > src_train.size(0) - 2:
                 src_p = 0
                 trainer.reset_src()
-            if trg_p + seq_len > trg_train.size(0):
+            if trg_p + seq_len > trg_train.size(0) - 2:
                 trg_p = 0
                 trainer.reset_trg()
 
