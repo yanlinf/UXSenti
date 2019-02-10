@@ -190,6 +190,12 @@ def main():
     if args.resume:
         # print('Resuming model ...')
         trainer = model_load(args.resume)
+        src_lm = trainer.src_lm
+        trg_lm = trainer.trg_lm
+        discriminator = trainer.discriminator
+        lm_optimizer = trainer.lm_optimizer
+        dis_optimizer = trainer.dis_optimizer
+        params = set(src_lm.parameters()) | set(trg_lm.parameters())
 
     else:
         src_lm, trg_lm = get_cross_lingual_language_model(src_ntok=len(src_vocab), trg_ntok=len(trg_vocab), emb_sz=args.emsize,
