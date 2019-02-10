@@ -15,7 +15,7 @@ class Vocab(object):
             self._counts = {}
             with open(path, 'r', encoding=encoding) as fin:
                 for line in fin:
-                    w, c = line.rstrip().split()
+                    w, c = line.rstrip().split(' ')
                     self._idx2w.append(w)
                     self._counts[w] = c
                 self._w2idx = {w: i for i, w in enumerate(self._idx2w)}
