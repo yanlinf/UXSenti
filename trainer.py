@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from sklearn.manifold import TSNE
 from utils.module import GradReverse
 from utils.bdi import compute_nn_accuracy
 from utils.utils import *
@@ -31,6 +32,7 @@ class CrossLingualLanguageModelTrainer(object):
         self.is_cuda = next(self.src_lm.parameters()).is_cuda
         self.src_encoder = list(self.src_lm.children())[0].encoder
         self.trg_encoder = list(self.trg_lm.children())[0].encoder
+        self.tsne = TSNE(2)
 
     def compute_loss(self, src_x, src_y, trg_x, trg_y, diff_lm=True):
         bs, bptt = src_x.size()
@@ -64,12 +66,23 @@ class CrossLingualLanguageModelTrainer(object):
 
         return src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss
 
+    def compute_adv_feats(self, src_x, trg_x):
+        """
+        src_x: torch.LongTensor of shape (1, seq_len)
+        trg_x: torch.LongTensor of shape (1, seq_len)
+        """
+        _, src_h, _ = self.src_lm(src_x)
+        _, trg_h, _ = self.trg_lm(trg_x)
+        src_feats = [x.squeeze(0) for x in ([self.src_encoder(src_x)] + src_h)]
+        trg_feats = [x.squeeze(0) for x in ([self.trg_encoder(src_x)] + trg_h)]
+        return src_feats, trg_feats
+
     def step(self, src_x, src_y, trg_x, trg_y):
         """
-        src_x: torch.tensor of shape (batch_size, src_bptt)
-        src_y: torch.tensor of shape (batch_size, trg_bptt)
-        trg_x: torch.tensor of shape (batch_size, src_bptt)
-        trg_x: torch.tensor of shape (batch_size, trg_bptt)
+        src_x: torch.LongTensor of shape (batch_size, src_bptt)
+        src_y: torch.LongTensor of shape (batch_size, trg_bptt)
+        trg_x: torch.LongTensor of shape (batch_size, src_bptt)
+        trg_y: torch.LongTensor of shape (batch_size, trg_bptt)
         """
         self.train()
         bs, bptt = src_x.size()
@@ -138,16 +151,31 @@ class CrossLingualLanguageModelTrainer(object):
             x.data.clamp_(-self.dis_clip, self.dis_clip)
         return loss, src_raw_loss, trg_raw_loss, dis_loss
 
+    def evaluate_tsne(self, src_x, trg_x):
+        """
+        src_x: torch.LongTensor of shape (1, seq_len)
+        trg_x: torch.LongTensor of shape (1, seq_len)
+        """
+        self.reset()
+        size = src_x.size(1)
+        src_feats, trg_feats = self.compute_adv_feats(src_x, trg_x)
+        res = []
+        for sx, tx in zip(src_feats, trg_feats):
+            x = torch.cat((sx, tx), 0).cpu().detach().numpy()
+            x = self.tsne.fit_transform(x)
+            res.append(x)
+        return res
+
     def evaluate(self, src_val, trg_val):
         """
-        src_val: torch.tensor of shape (src_val_len, batch_size)
-        trg_val: torch.tensor of shape (trg_val_len, batch_size)
+        src_val: torch.LongTensor of shape (src_val_len, batch_size)
+        trg_val: torch.LongTensor of shape (trg_val_len, batch_size)
         """
         src_l, bs = src_val.size()
         trg_l, bs = trg_val.size()
         length = min(src_l, trg_l)
         bptt = self.bptt
-        length = (length // bptt) * bptt
+        length = ((length - 1) // bptt) * bptt
 
         self.eval()
         self.reset()
