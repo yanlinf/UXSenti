@@ -101,6 +101,7 @@ def main():
     randomhash = str(time.time()).split('.')[0]
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
+    parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
     parser.add_argument('--lm_lr', type=float, default=0.003, help='initial learning rate')
     parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
@@ -244,7 +245,7 @@ def main():
         total_loss = np.zeros(4)
         start_time = time.time()
 
-        for epoch in range(1, args.epochs + 1):
+        for epoch in range(args.epochs):
 
             # sample seq_len
             bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
@@ -261,7 +262,13 @@ def main():
             sx, sy = get_batch(src_train, src_p, args.bptt, seq_len=seq_len, batch_first=True)
             tx, ty = get_batch(trg_train, trg_p, args.bptt, seq_len=seq_len, batch_first=True)
 
-            losses = trainer.step(sx, sy, tx, ty)
+            if args.dis_nsteps is not None:
+                if (epoch + 1) % (args.dis_nsteps + 1) == 0:
+                    losses = trainer.lm_step(sx, sy, tx, ty)
+                else:
+                    losses = trainer.dis_step(sx, sy, tx, ty)
+            else:
+                losses = trainer.step(sx, sy, tx, ty)
             total_loss += np.array(losses)
 
             src_p += seq_len
