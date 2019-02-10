@@ -32,7 +32,7 @@ class CrossLingualLanguageModelTrainer(object):
         self.src_encoder = list(self.src_lm.children())[0].encoder
         self.trg_encoder = list(self.trg_lm.children())[0].encoder
 
-    def compute_loss(self, src_x, src_y, trg_x, trg_y):
+    def compute_loss(self, src_x, src_y, trg_x, trg_y, diff_lm=True):
         bs, bptt = src_x.size()
         src_out, src_h, src_dropped_h = self.src_lm(src_x)
         trg_out, trg_h, trg_dropped_h = self.trg_lm(trg_x)
@@ -49,6 +49,9 @@ class CrossLingualLanguageModelTrainer(object):
 
         dis_x = torch.cat([src_pooled, trg_pooled], 0)
         dis_x = self.rev_grad(dis_x)
+        if not diff_lm:
+            dis_x = dis_x.detach()
+
         dis_y = torch.cat((torch.zeros(bs, dtype=torch.int64), torch.ones(bs, dtype=torch.int64)), -1)
         if self.is_cuda:
             dis_y = dis_y.cuda()
@@ -73,7 +76,7 @@ class CrossLingualLanguageModelTrainer(object):
 
         self.lm_optimizer.zero_grad()
         self.dis_optimizer.zero_grad()
-        lr0 = adjust_lr(self.lm_optimizer, lr0 * bptt / self.bptt)
+        lr0 = self.adjust_lr(bptt)
 
         src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
         loss = src_loss + trg_loss + dis_loss
@@ -86,8 +89,53 @@ class CrossLingualLanguageModelTrainer(object):
         for x in self.discriminator.parameters():
             x.data.clamp_(-self.dis_clip, self.dis_clip)
 
-        adjust_lr(self.lm_optimizer, lr0)
+        self.restore_lr(lr0)
 
+        return loss, src_raw_loss, trg_raw_loss, dis_loss
+
+    def adjust_lr(self, bptt):
+        lr = self.lm_optimizer.param_groups[0]['lr']
+        self.lm_optimizer.param_groups[0]['lr'] = lr * bptt / self.bptt
+        return lr
+
+    def restore_lr(self, lr):
+        self.lm_optimizer.param_groups[0]['lr'] = lr
+
+    def lm_step(self, src_x, src_y, trg_x, trg_y):
+        # freeze_net(self.discriminator)
+        # unfreeze_net(self.src_lm)
+        # unfreeze_net(self.trg_lm)
+        self.train()
+        bs, bptt = src_x.size()
+
+        self.lm_optimizer.zero_grad()
+        lr0 = self.adjust_lr(bptt)
+
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
+        loss = src_loss + trg_loss + dis_loss
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(self.src_lm.parameters(), self.lm_clip)
+        torch.nn.utils.clip_grad_norm_(self.trg_lm.parameters(), self.lm_clip)
+        self.lm_optimizer.step()
+        self.restore_lr(lr0)
+        return loss, src_raw_loss, trg_raw_loss, dis_loss
+
+    def dis_step(self, src_x, src_y, trg_x, trg_y):
+        # unfreeze_net(self.discriminator)
+        # freeze_net(self.src_lm)
+        # freeze_net(self.trg_lm)
+        self.train()
+
+        self.dis_optimizer.zero_grad()
+
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y, diff_lm=False)
+        loss = src_loss + trg_loss + dis_loss
+        loss.backward()
+
+        self.dis_optimizer.step()
+        for x in self.discriminator.parameters():
+            x.data.clamp_(-self.dis_clip, self.dis_clip)
         return loss, src_raw_loss, trg_raw_loss, dis_loss
 
     def evaluate(self, src_val, trg_val):
