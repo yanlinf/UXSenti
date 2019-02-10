@@ -236,7 +236,7 @@ def main():
     ###############################################################################
 
     # Loop over epochs.
-    best_val_loss = np.array([float('inf')] * 4)
+    best_acc = 0.
     print('Traning:')
     # At any point you can hit Ctrl + C to break out of training early.
     try:
@@ -288,10 +288,10 @@ def main():
                     epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3]))
                 print('-' * 91)
 
-                if val_loss[0] < best_val_loss[0]:
+                if acc > best_acc:
                     print('saving model to {}'.format(model_path))
                     model_save(trainer, model_path)
-                    best_val_loss = val_loss
+                    best_acc = acc
 
     except KeyboardInterrupt:
         print('-' * 91)
@@ -301,17 +301,7 @@ def main():
     # Testing
     ###############################################################################
 
-    model_load(model_path)   # Load the best saved model.
-
-    # print('Generated sentences:')
-    # pred_sents = sample(TEST_SENTS, model, PRED_NWORDS, src_vocab)
-    # print('\n\t'.join(pred_sents))
-
-    # test_loss = evaluate(test_data, model, criterion, args.bptt)
-    # print('-' * 91)
-    # print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    #     test_loss, math.exp(test_loss), test_loss / math.log(2)))
-    # print('-' * 91)
+    trainer = model_load(model_path)   # Load the best saved model.
 
 
 if __name__ == '__main__':
