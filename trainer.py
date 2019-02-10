@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 from utils.module import GradReverse
 from utils.bdi import compute_nn_accuracy
+from utils.utils import *
 
 
 class CrossLingualLanguageModelTrainer(object):
@@ -72,17 +73,11 @@ class CrossLingualLanguageModelTrainer(object):
 
         self.lm_optimizer.zero_grad()
         self.dis_optimizer.zero_grad()
-        lr0 = self.lm_optimizer.param_groups[0]['lr']
-        self.lm_optimizer.param_groups[0]['lr'] = lr0 * bptt / self.bptt
+        lr0 = adjust_lr(self.lm_optimizer, lr0 * bptt / self.bptt)
 
         src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
         loss = src_loss + trg_loss + dis_loss
-
-        if self.use_wgan:
-            # (src_loss + trg_loss - dis_loss).backward()
-            (src_loss + trg_loss).backward()
-        else:
-            loss.backward()
+        loss.backward()
 
         torch.nn.utils.clip_grad_norm_(self.src_lm.parameters(), self.lm_clip)
         torch.nn.utils.clip_grad_norm_(self.trg_lm.parameters(), self.lm_clip)
@@ -90,7 +85,8 @@ class CrossLingualLanguageModelTrainer(object):
         self.dis_optimizer.step()
         for x in self.discriminator.parameters():
             x.data.clamp_(-self.dis_clip, self.dis_clip)
-        self.lm_optimizer.param_groups[0]['lr'] = lr0
+
+        adjust_lr(self.lm_optimizer, lr0)
 
         return loss, src_raw_loss, trg_raw_loss, dis_loss
 
