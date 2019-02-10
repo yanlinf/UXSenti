@@ -32,6 +32,26 @@ def bool_flag(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
+def load_vectors(path, maxload=-1):
+    """
+
+    """
+    with open(path, 'r', encoding='utf-8', newline='\n', errors='ignore') as fin:
+        n, d = map(int, fin.readline().split(' '))
+        if maxload > 0:
+            n = min(n, maxload)
+        x = np.zeros([n, d])
+        words = []
+        for i, line in enumerate(fin):
+            if i >= n:
+                break
+            tokens = line.rstrip().split(' ')
+            words.append(tokens[0])
+            x[i] = np.array(tokens[1:], dtype=float)
+
+    return words, x
+
+
 def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
     """
     path: str
@@ -64,7 +84,7 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
 
     else:
         with open(path, 'r', encoding=encoding) as f:
-            corpus = [line.rstrip() for line in f]
+            corpus = [line.rstrip() + ' ' + EOS_TOK for line in f]
 
         ntokens = sum(len(line.split()) for line in corpus)
         ids = torch.LongTensor(ntokens)
