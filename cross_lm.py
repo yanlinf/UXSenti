@@ -8,6 +8,9 @@ import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 from fastai.text.models.awd_lstm import *
 from utils.vocab import *
 from utils.data import *
@@ -24,6 +27,19 @@ TEST_SENTS = [
     'do you feel different from people',
 ]
 PRED_NWORDS = 20
+
+
+def plot_tsne(x_list, path):
+    check_path(path)
+    n = len(x_list)
+    m = x_list[0].shape[0] // 2
+    fig = plt.figure()
+    for i, x in enumerate(x_list):
+        ax = fig.add_subplot(1, n, i + 1)
+        ax.scatter(x[:m, 0], x[:m, 1], color='r')
+        ax.scatter(x[m:, 0], x[m:, 1], color='b')
+    fig.set_size_inches(8 * n, 8)
+    fig.savefig(path, format='png')
 
 
 def model_save(trainer, path):
@@ -140,40 +156,37 @@ def main():
 
     model_path = os.path.join(args.export, 'model.pt')
     config_path = os.path.join(args.export, 'config.json')
+    tsne_path = os.path.join(args.export, 'tsne_{}.png')
     export_config(args, config_path)
     check_path(model_path)
 
     ###############################################################################
     # Load data
     ###############################################################################
-    print('Statistics:')
 
     # load vocabulary
     src_vocab = Vocab(path=args.src_vocab)
     trg_vocab = Vocab(path=args.trg_vocab)
-    print('\tsrc vocab size: {}'.format(len(src_vocab)))
-    print('\ttrg vocab size: {}'.format(len(trg_vocab)))
-
     lexicon, lex_sz = load_lexicon(args.lexicon, src_vocab, trg_vocab)
-    print('\tlexicon size:   {}'.format(len(lexicon)))
-    print('\tlex oov rate:   {}'.format(1 - len(lexicon) / lex_sz))
-
     with open(os.path.join('pickle', args.src, 'full.txt'), 'rb') as fin:
         src_x = pickle.load(fin)
     with open(os.path.join('pickle', args.trg, 'full.txt'), 'rb') as fin:
         trg_x = pickle.load(fin)
-
     if args.cuda:
         src_x = src_x.cuda()
         trg_x = trg_x.cuda()
-
-    print('\tsrc size:       {}'.format(src_x.size(0)))
-    print('\ttrg size:       {}'.format(trg_x.size(0)))
     src_size = src_x.size(0)
     trg_size = trg_x.size(0)
     src_train, src_val = src_x[:int(src_size * 0.8)], src_x[int(src_size * 0.8):]
     trg_train, trg_val = trg_x[:int(trg_size * 0.8)], trg_x[int(trg_size * 0.8):]
 
+    print('Statistics:')
+    print('\tsrc vocab size: {}'.format(len(src_vocab)))
+    print('\ttrg vocab size: {}'.format(len(trg_vocab)))
+    print('\tlexicon size:   {}'.format(len(lexicon)))
+    print('\tlex oov rate:   {:.4f}'.format(1 - len(lexicon) / lex_sz))
+    print('\tsrc size:       {}'.format(src_x.size(0)))
+    print('\ttrg size:       {}'.format(trg_x.size(0)))
     print('\tsrc train size: {}'.format(src_train.size(0)))
     print('\tsrc val size :  {}'.format(src_val.size(0)))
     print('\ttrg train size: {}'.format(trg_train.size(0)))
@@ -295,6 +308,8 @@ def main():
             if (epoch + 1) % args.val_interval == 0:
                 val_loss = trainer.evaluate(src_val, trg_val)
                 acc = trainer.evaluate_bdi()
+                ans = trainer.evaluate_tsne(src_val[:300, 0].view(1, -1), trg_val[:300, 0].view(1, -1))
+                plot_tsne(ans, tsne_path.format(epoch + 1))
 
                 print('-' * 91)
                 print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
