@@ -40,6 +40,7 @@ def plot_tsne(x_list, path):
         ax.scatter(x[m:, 0], x[m:, 1], color='b')
     fig.set_size_inches(8 * n, 8)
     fig.savefig(path, format='png')
+    pyplot.close(fig)
 
 
 def model_save(trainer, path):
@@ -278,8 +279,8 @@ def main():
                 trainer.reset_trg()
 
             # fetch a batch of data
-            sx, sy = get_batch(src_train, src_p, args.bptt, seq_len=seq_len, batch_first=True)
-            tx, ty = get_batch(trg_train, trg_p, args.bptt, seq_len=seq_len, batch_first=True)
+            sx, sy = get_batch(src_train, src_p, args.bptt, seq_len=seq_len, batch_first=True, cuda=args.cuda)
+            tx, ty = get_batch(trg_train, trg_p, args.bptt, seq_len=seq_len, batch_first=True, cuda=args.cuda)
 
             if args.dis_nsteps is not None:
                 if (epoch + 1) % (args.dis_nsteps + 1) == 0:

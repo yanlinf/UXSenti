@@ -186,6 +186,8 @@ class CrossLingualLanguageModelTrainer(object):
             sy = src_val[i + 1:i + 1 + bptt].t().contiguous().view(-1)
             tx = trg_val[i:i + bptt].t()
             ty = trg_val[i + 1:i + 1 + bptt].t().contiguous().view(-1)
+            if self.is_cuda:
+                sx, sy, tx, ty = sx.cuda(), sy.cuda(), tx.cuda(), ty.cuda()
             src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(sx, sy, tx, ty)
             loss = src_loss + trg_loss + dis_loss
             total_losses += np.array([loss, src_raw_loss, trg_raw_loss, dis_loss])

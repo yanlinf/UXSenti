@@ -135,7 +135,7 @@ def batchify(data, bsz):
     return data  # shape (size, batch_size)
 
 
-def get_batch(source, i, bptt, seq_len=None, evaluation=False, batch_first=False):
+def get_batch(source, i, bptt, seq_len=None, evaluation=False, batch_first=False, cuda=False):
     assert isinstance(bptt, int)
 
     seq_len = min(seq_len if seq_len else bptt, len(source) - 1 - i)
@@ -145,4 +145,9 @@ def get_batch(source, i, bptt, seq_len=None, evaluation=False, batch_first=False
     else:
         data = source[i:i + seq_len]
         target = source[i + 1:i + 1 + seq_len].view(-1)
+
+    if cuda:
+        data = data.cuda()
+        target = target.cuda()
+
     return data, target
