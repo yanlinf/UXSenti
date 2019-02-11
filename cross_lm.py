@@ -40,7 +40,7 @@ def plot_tsne(x_list, path):
         ax.scatter(x[m:, 0], x[m:, 1], color='b')
     fig.set_size_inches(8 * n, 8)
     fig.savefig(path, format='png')
-    pyplot.close(fig)
+    plt.close(fig)
 
 
 def model_save(trainer, path):
