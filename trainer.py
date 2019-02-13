@@ -66,15 +66,19 @@ class CrossLingualLanguageModelTrainer(object):
 
         return src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss
 
-    def compute_adv_feats(self, src_x, trg_x):
+    def compute_adv_feats(self, src_x, trg_x, pool=False):
         """
         src_x: torch.LongTensor of shape (1, seq_len)
         trg_x: torch.LongTensor of shape (1, seq_len)
+        pool: bool
         """
         _, src_h, _ = self.src_lm(src_x)
         _, trg_h, _ = self.trg_lm(trg_x)
         src_feats = [x.squeeze(0) for x in ([self.src_encoder(src_x)] + src_h)]
-        trg_feats = [x.squeeze(0) for x in ([self.trg_encoder(src_x)] + trg_h)]
+        trg_feats = [x.squeeze(0) for x in ([self.trg_encoder(trg_x)] + trg_h)]
+        if pool:
+            src_feats = [x.mean(1) for x in src_feats]
+            trg_feats = [x.mean(1) for x in trg_feats]
         return src_feats, trg_feats
 
     def step(self, src_x, src_y, trg_x, trg_y):
@@ -157,6 +161,7 @@ class CrossLingualLanguageModelTrainer(object):
         trg_x: torch.LongTensor of shape (1, seq_len)
         """
         self.reset()
+        self.eval()
         size = src_x.size(1)
         src_feats, trg_feats = self.compute_adv_feats(src_x, trg_x)
         res = []
@@ -164,6 +169,38 @@ class CrossLingualLanguageModelTrainer(object):
             x = torch.cat((sx, tx), 0).cpu().detach().numpy()
             x = self.tsne.fit_transform(x)
             res.append(x)
+        return res
+
+    def evaluate_ptsne(self, src_x, trg_x):
+        """
+        src_x: torch.LongTensor of shape (seq_len, batch_size)
+        trg_x: torch.LongTensor of shape (seq_len, batch_size)
+        """
+        self.reset()
+        self.eval()
+        seq, bs = src_x.size()
+        for i in range(0, seq, self.bptt):
+            sx = src_x[i:i + self.bptt].t()
+            tx = trg_x[i:i + self.bptt].t()
+            sf, tf = self.compute_adv_feats(sx, tx, pool=True)
+            if i == 0:
+                src_feats, trg_feats = sf, tf
+            else:
+                for i, (p, q) in enumerate(zip(sf, tf)):
+                    src_feats[i] = torch.cat((src_feats[i], p), 0)
+                    trg_feats[i] = torch.cat((trg_feats[i], q), 0)
+
+        res = []
+        for sx, tx in zip(src_feats, trg_feats):
+            x = torch.cat((sx, tx), 0).cpu().detach().numpy()
+            x = self.tsne.fit_transform(x)
+            res.append(x)
+
+        sx = self.src_encoder(src_x.view(-1, self.bptt, bs).cuda()).mean(1).view(-1, 400)
+        tx = self.src_encoder(trg_x.view(-1, self.bptt, bs).cuda()).mean(1).view(-1, 400)
+        x = torch.cat((sx, tx), 0).cpu().detach().numpy()
+        x = self.tsne.fit_transform(x)
+        res[0] = x
         return res
 
     def evaluate(self, src_val, trg_val):
@@ -200,6 +237,12 @@ class CrossLingualLanguageModelTrainer(object):
         acc = compute_nn_accuracy(x_src, x_trg, self.lexicon,
                                   batch_size=5000, lexicon_size=self.lexicon_size)
         return acc
+
+    def get_hidden(self):
+        return next(self.src_lm.children()).hidden, next(self.trg_lm.children()).hidden
+
+    def set_hidden(self, src_h, trg_h):
+        next(self.src_lm.children()).hidden, next(self.trg_lm.children()).hidden = src_h, trg_h
 
     def reset(self):
         self.src_lm.reset()
