@@ -32,9 +32,9 @@ PRED_NWORDS = 20
 def plot_tsne(x_list, path):
     check_path(path)
     n = len(x_list)
-    m = x_list[0].shape[0] // 2
     fig = plt.figure()
     for i, x in enumerate(x_list):
+        m = x.shape[0] // 2
         ax = fig.add_subplot(1, n, i + 1)
         ax.scatter(x[:m, 0], x[:m, 1], color='r')
         ax.scatter(x[m:, 0], x[m:, 1], color='b')
@@ -129,7 +129,7 @@ def main():
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
 
-    parser.add_argument('--wdecay', type=float, default=1.2e-6, help='weight decay applied to all weights')
+    parser.add_argument('--wdecay', type=float, default=1e-5, help='weight decay applied to all weights')
     parser.add_argument('--resume', type=str,  default='', help='path of model to resume')
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
     args = parser.parse_args()
@@ -158,6 +158,7 @@ def main():
     model_path = os.path.join(args.export, 'model.pt')
     config_path = os.path.join(args.export, 'config.json')
     tsne_path = os.path.join(args.export, 'tsne_{}.png')
+    ptsne_path = os.path.join(args.export, 'ptsne_{}.png')
     export_config(args, config_path)
     check_path(model_path)
 
@@ -307,10 +308,13 @@ def main():
                 start_time = time.time()
 
             if (epoch + 1) % args.val_interval == 0:
+                hidden = trainer.get_hidden()
                 val_loss = trainer.evaluate(src_val, trg_val)
                 acc = trainer.evaluate_bdi()
                 ans = trainer.evaluate_tsne(src_val[:300, 0].view(1, -1), trg_val[:300, 0].view(1, -1))
                 plot_tsne(ans, tsne_path.format(epoch + 1))
+                ans = trainer.evaluate_ptsne(src_val[:args.bptt * 5], trg_val[:args.bptt * 5])
+                plot_tsne(ans, ptsne_path.format(epoch + 1))
 
                 print('-' * 91)
                 print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
@@ -321,6 +325,8 @@ def main():
                     print('saving model to {}'.format(model_path))
                     model_save(trainer, model_path)
                     best_acc = acc
+
+                trainer.set_hidden(*hidden)
 
     except KeyboardInterrupt:
         print('-' * 91)
