@@ -100,7 +100,7 @@ def main():
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
     parser.add_argument('--nhid', type=int, default=1150, help='number of hidden units per layer')
     parser.add_argument('--dis_nhid', type=int, default=1024, help='number of hidden units per layer')
-    parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
+    parser.add_argument('--nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--wgan', type=bool_flag, nargs='?', const=True, default=False, help='use wgan')
     parser.add_argument('--gamma', type=float, default=0, help='coefficient of the word-level adversarial loss')
