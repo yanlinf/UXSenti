@@ -12,7 +12,7 @@ class CrossLingualLanguageModelTrainer(object):
 
     def __init__(self, src_lm, trg_lm, discriminator, lm_optimizer, dis_optimizer,
                  criterion, bptt, alpha, beta, lambd, lm_clip, dis_clip, lexicon,
-                 lexicon_size, use_wgan=False):
+                 lexicon_size, use_wgan=False, gamma=0, word_discriminator=None):
         self.src_lm = src_lm
         self.trg_lm = trg_lm
         self.discriminator = discriminator
@@ -28,7 +28,10 @@ class CrossLingualLanguageModelTrainer(object):
         self.lexicon = lexicon
         self.lexicon_size = lexicon_size
         self.use_wgan = use_wgan
+        self.gamma = gamma
+        self.word_discriminator = word_discriminator
         self.rev_grad = GradReverse(self.lambd)
+        self.wrev_grad = GradReverse(self.gamma)
         self.is_cuda = next(self.src_lm.parameters()).is_cuda
         self.src_encoder = list(self.src_lm.children())[0].encoder
         self.trg_encoder = list(self.trg_lm.children())[0].encoder
@@ -46,25 +49,37 @@ class CrossLingualLanguageModelTrainer(object):
         trg_loss = trg_loss + sum(self.alpha * h.pow(2).mean() for h in trg_dropped_h[-1:])
         trg_loss = trg_loss + sum(self.beta * (h[:, 1:] - h[:, :-1]).pow(2).mean() for h in trg_h[-1:])
 
-        src_pooled = torch.cat([self.src_encoder(src_x).mean(1)] + [h.mean(1) for h in src_h], -1)
-        trg_pooled = torch.cat([self.trg_encoder(trg_x).mean(1)] + [h.mean(1) for h in trg_h], -1)
+        src_pooled = torch.cat([h.mean(1) for h in src_h], -1)
+        trg_pooled = torch.cat([h.mean(1) for h in trg_h], -1)
 
         dis_x = torch.cat([src_pooled, trg_pooled], 0)
         dis_x = self.rev_grad(dis_x)
         if not diff_lm:
             dis_x = dis_x.detach()
-
         dis_y = torch.cat((torch.zeros(bs, dtype=torch.int64), torch.ones(bs, dtype=torch.int64)), -1)
         if self.is_cuda:
             dis_y = dis_y.cuda()
         dis_out = self.discriminator(dis_x)
-
         if self.use_wgan:
             dis_loss = dis_out[:bs].mean() - dis_out[bs:].mean()
         else:
             dis_loss = self.criterion(F.log_softmax(dis_out, -1), dis_y)
 
-        return src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss
+        if self.gamma > 0 and self.word_discriminator is not None:
+            wdis_x = torch.cat((self.src_encoder(src_x.contiguous().view(-1)), self.trg_encoder(trg_x.contiguous().view(-1))), 0)
+            wdis_x = self.wrev_grad(wdis_x)
+            wdis_y = torch.cat((torch.zeros(bs * bptt, dtype=torch.int64), torch.ones(bs * bptt, dtype=torch.int64)), -1)
+            if self.is_cuda:
+                wdis_y = wdis_y.cuda()
+            wdis_out = self.word_discriminator(wdis_x)
+            if self.use_wgan:
+                wdis_loss = wdis_out[:bs].mean() - wdis_out[bs:].mean()
+            else:
+                wdis_loss = self.criterion(F.log_softmax(wdis_out, -1), wdis_y)
+        else:
+            wdis_loss = 0
+
+        return src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss
 
     def compute_adv_feats(self, src_x, trg_x, pool=False):
         """
@@ -95,8 +110,8 @@ class CrossLingualLanguageModelTrainer(object):
         self.dis_optimizer.zero_grad()
         lr0 = self.adjust_lr(bptt)
 
-        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
-        loss = src_loss + trg_loss + dis_loss
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
+        loss = src_loss + trg_loss + dis_loss + wdis_loss
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(self.src_lm.parameters(), self.lm_clip)
@@ -108,7 +123,7 @@ class CrossLingualLanguageModelTrainer(object):
 
         self.restore_lr(lr0)
 
-        return loss, src_raw_loss, trg_raw_loss, dis_loss
+        return loss, src_raw_loss, trg_raw_loss, dis_loss, wdis_loss
 
     def adjust_lr(self, bptt):
         lr = self.lm_optimizer.param_groups[0]['lr']
@@ -128,15 +143,15 @@ class CrossLingualLanguageModelTrainer(object):
         self.lm_optimizer.zero_grad()
         lr0 = self.adjust_lr(bptt)
 
-        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
-        loss = src_loss + trg_loss + dis_loss
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
+        loss = src_loss + trg_loss + dis_loss + wdis_loss
         loss.backward()
 
         torch.nn.utils.clip_grad_norm_(self.src_lm.parameters(), self.lm_clip)
         torch.nn.utils.clip_grad_norm_(self.trg_lm.parameters(), self.lm_clip)
         self.lm_optimizer.step()
         self.restore_lr(lr0)
-        return loss, src_raw_loss, trg_raw_loss, dis_loss
+        return loss, src_raw_loss, trg_raw_loss, dis_loss, wdis_loss
 
     def dis_step(self, src_x, src_y, trg_x, trg_y):
         # unfreeze_net(self.discriminator)
@@ -146,14 +161,14 @@ class CrossLingualLanguageModelTrainer(object):
 
         self.dis_optimizer.zero_grad()
 
-        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y, diff_lm=False)
-        loss = src_loss + trg_loss + dis_loss
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y, diff_lm=False)
+        loss = src_loss + trg_loss + dis_loss + wdis_loss
         loss.backward()
 
         self.dis_optimizer.step()
         for x in self.discriminator.parameters():
             x.data.clamp_(-self.dis_clip, self.dis_clip)
-        return loss, src_raw_loss, trg_raw_loss, dis_loss
+        return loss, src_raw_loss, trg_raw_loss, dis_loss, wdis_loss
 
     def evaluate_tsne(self, src_x, trg_x):
         """
@@ -217,7 +232,7 @@ class CrossLingualLanguageModelTrainer(object):
         self.eval()
         self.reset()
 
-        total_losses = np.zeros(4)
+        total_losses = 0
         for i in range(0, length, bptt):
             sx = src_val[i:i + bptt].t()
             sy = src_val[i + 1:i + 1 + bptt].t().contiguous().view(-1)
@@ -225,9 +240,9 @@ class CrossLingualLanguageModelTrainer(object):
             ty = trg_val[i + 1:i + 1 + bptt].t().contiguous().view(-1)
             if self.is_cuda:
                 sx, sy, tx, ty = sx.cuda(), sy.cuda(), tx.cuda(), ty.cuda()
-            src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss = self.compute_loss(sx, sy, tx, ty)
+            src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(sx, sy, tx, ty)
             loss = src_loss + trg_loss + dis_loss
-            total_losses += np.array([loss, src_raw_loss, trg_raw_loss, dis_loss])
+            total_losses += np.array([loss, src_raw_loss, trg_raw_loss, dis_loss, wdis_loss])
 
         return total_losses / (length / bptt)
 
@@ -261,18 +276,24 @@ class CrossLingualLanguageModelTrainer(object):
         self.src_lm.train()
         self.trg_lm.train()
         self.discriminator.train()
+        if self.word_discriminator is not None:
+            self.word_discriminator.train()
         return self
 
     def eval(self):
         self.src_lm.eval()
         self.trg_lm.eval()
         self.discriminator.eval()
+        if self.word_discriminator is not None:
+            self.word_discriminator.eval()
         return self
 
     def cuda(self):
         self.src_lm.cuda()
         self.trg_lm.cuda()
         self.discriminator.cuda()
+        if self.word_discriminator is not None:
+            self.word_discriminator.cuda()
         self.is_cuda = True
         return self
 
@@ -280,5 +301,7 @@ class CrossLingualLanguageModelTrainer(object):
         self.src_lm.cpu()
         self.trg_lm.cpu()
         self.discriminator.cpu()
+        if self.word_discriminator is not None:
+            self.word_discriminator.cpu()
         self.is_cuda = False
         return self

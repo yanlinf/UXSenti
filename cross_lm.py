@@ -45,11 +45,13 @@ def plot_tsne(x_list, path):
 
 def model_save(trainer, path):
     trainer.rev_grad = None
+    trainer.wrev_grad = None
 
     with open(path, 'wb') as f:
         torch.save(trainer, f)
 
     trainer.rev_grad = GradReverse(trainer.lambd)
+    trainer.wrev_grad = GradReverse(trainer.gamma)
 
 
 def model_load(path):
@@ -101,6 +103,7 @@ def main():
     parser.add_argument('--nlayers', type=int, default=3, help='number of layers')
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--wgan', type=bool_flag, nargs='?', const=True, default=False, help='use wgan')
+    parser.add_argument('--gamma', type=float, default=0, help='coefficient of the word-level adversarial loss')
 
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
@@ -115,7 +118,6 @@ def main():
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
     parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
     parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
-    randomhash = str(time.time()).split('.')[0]
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
@@ -218,22 +220,28 @@ def main():
                                                           output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                           embed_p=args.dropoute, weight_p=args.wdrop)
 
-        dis_in_dim = (args.nlayers - 1) * args.nhid + (args.emsize if args.tied else args.nhid) + args.emsize
+        dis_in_dim = (args.nlayers - 1) * args.nhid + (args.emsize if args.tied else args.nhid)
         dis_out_dim = 1 if args.wgan else 2
         discriminator = Discriminator(dis_in_dim, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
+        if args.gamma > 0:
+            word_discriminator = Discriminator(args.emsize, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
+        else:
+            word_discriminator = None
         criterion = nn.NLLLoss()
         params = set(src_lm.parameters()) | set(trg_lm.parameters())
+        dis_params = list(discriminator.parameters()) + (list(word_discriminator.parameters()) if args.gamma > 0 else [])
         if args.optimizer == 'sgd':
             lm_optimizer = torch.optim.SGD(params, lr=args.lm_lr, weight_decay=args.wdecay)
-            dis_optimizer = torch.optim.SGD(discriminator.parameters(), lr=args.dis_lr, weight_decay=args.wdecay)
+            dis_optimizer = torch.optim.SGD(dis_params, lr=args.dis_lr, weight_decay=args.wdecay)
         if args.optimizer == 'adam':
             lm_optimizer = torch.optim.Adam(params, lr=args.lm_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
-            dis_optimizer = torch.optim.Adam(discriminator.parameters(), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
+            dis_optimizer = torch.optim.Adam(dis_params, lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
         trainer = CrossLingualLanguageModelTrainer(src_lm, trg_lm, discriminator, lm_optimizer,
                                                    dis_optimizer, criterion, args.bptt, args.alpha,
                                                    args.beta, args.lambd, args.lm_clip, args.dis_clip,
-                                                   lexicon, lex_sz, args.wgan)
+                                                   lexicon, lex_sz, args.wgan,
+                                                   args.gamma, word_discriminator)
 
     if args.cuda:
         trainer.cuda()
@@ -263,7 +271,7 @@ def main():
     # At any point you can hit Ctrl + C to break out of training early.
     try:
         src_p, trg_p = 0, 0
-        total_loss = np.zeros(4)
+        total_loss = 0  # will be broadcasted into a 1-D array
         start_time = time.time()
 
         for epoch in range(args.epochs):
@@ -300,9 +308,9 @@ def main():
                 elapsed = time.time() - start_time
 
                 print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:5.2f} | '
-                      ' loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
+                      ' loss {:5.2f} | sppl {:7.2f} | tppl {:7.2f} | dis {:7.4f} | wdis {:7.4f} |'.format(
                           epoch, lm_optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
-                          cur_loss[0], math.exp(cur_loss[1]), math.exp(cur_loss[2]), cur_loss[3]))
+                          cur_loss[0], math.exp(cur_loss[1]), math.exp(cur_loss[2]), cur_loss[3], cur_loss[4]))
 
                 total_loss = 0
                 start_time = time.time()
@@ -317,8 +325,8 @@ def main():
                 plot_tsne(ans, ptsne_path.format(epoch + 1))
 
                 print('-' * 91)
-                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | src_ppl {:7.2f} | trg_ppl {:7.2f} | dis_loss {:7.4f} |'.format(
-                    epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3]))
+                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | sppl {:7.2f} | tppl {:7.2f} | dis {:7.4f} | wdis {:7.4f} |'.format(
+                    epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3], val_loss[4]))
                 print('-' * 91)
 
                 if acc > best_acc:
