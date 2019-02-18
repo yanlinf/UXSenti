@@ -7,13 +7,13 @@ SRC_DIR = 'data/'
 DOMAINS = ['books', 'dvd', 'music']
 PART = ['train.review', 'test.review', 'unlabeled.review']
 TRG_DIR = 'data/'
-EXTRA_TOKENS = ['<eos>', '<unk>', '<num>']
+EXTRA_TOKENS = ['<eos>', '<unk>']
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', type=int, default=10000, help='vocabulary size')
-    parser.add_argument('--vec', action='store_true', help='use fasttext')
+    parser.add_argument('--fasttext', action='store_true', help='use fasttext')
     parser.add_argument('--lang', choices=['en', 'fr', 'de', 'jp'], default=['en', 'fr', 'de', 'jp'], nargs='+', help='lanuages to gen vocab')
     parser.add_argument('--encoding', default='utf-8', help='encoding format')
     args = parser.parse_args()
@@ -22,8 +22,8 @@ def main():
         os.makedirs(TRG_DIR)
 
     for lang in args.lang:
-        if args.vec:
-            words, _ = load_vectors('data/wiki.{}.vec'.format('ja' if lang == 'jp'else lang), maxload=args.size)
+        if args.fasttext:
+            words, _ = load_vectors('data/wiki.{}.vec'.format('ja' if lang == 'jp'else lang), maxload=(args.size - len(EXTRA_TOKENS)))
             vocab = Vocab()
             for w in words:
                 vocab.add_word(w)
@@ -35,7 +35,7 @@ def main():
                     with open(path, 'r', encoding=args.encoding) as fin:
                         corpus += [row.rstrip() for row in fin]
             vocab = Vocab(corpus)
-            vocab.cutoff(args.size)
+            vocab.cutoff(args.size - len(EXTRA_TOKENS))
 
         for tok in EXTRA_TOKENS:
             vocab.add_word(tok)
