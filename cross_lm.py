@@ -90,8 +90,8 @@ def sample(sents, model, n_words, vocab):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-src', '--src', default='en', help='source_language')
-    parser.add_argument('-trg', '--trg', default='fr', help='target_language')
+    parser.add_argument('-src', '--src', choices=['en', 'fr', 'de', 'jp'], default='en', help='source_language')
+    parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'jp'], default='fr', help='target_language')
     parser.add_argument('--lexicon', default='data/muse/en-fr.0-5000.txt', help='lexicon file')
     parser.add_argument('--src_vocab', default='data/vocab_en.txt', help='src vocab file')
     parser.add_argument('--trg_vocab', default='data/vocab_fr.txt', help='trg vocab file')
@@ -105,6 +105,10 @@ def main():
     parser.add_argument('--wgan', type=bool_flag, nargs='?', const=True, default=False, help='use wgan')
     parser.add_argument('--gamma', type=float, default=0, help='coefficient of the word-level adversarial loss')
     parser.add_argument('--nshare', type=int, default=-1, help='number of rnn layers to share')
+
+    parser.add_argument('--criterion', choices=['nll', 'wsnll'], default='nll')
+    parser.add_argument('--smooth_eps', type=float, default=0.2, help='eps for wsnll')
+    parser.add_argument('--smooth_size', type=int, default=3, help='window size for wsnll')
 
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
@@ -170,8 +174,10 @@ def main():
     ###############################################################################
 
     # load vocabulary
-    src_vocab = Vocab(path=args.src_vocab)
-    trg_vocab = Vocab(path=args.trg_vocab)
+    with open(os.path.join('pickle', 'vocab_{}.txt'.format(args.src)), 'rb') as fin:
+        src_vocab = pickle.load(fin)
+    with open(os.path.join('pickle', 'vocab_{}.txt'.format(args.trg)), 'rb') as fin:
+        trg_vocab = pickle.load(fin)
     lexicon, lex_sz = load_lexicon(args.lexicon, src_vocab, trg_vocab)
     with open(os.path.join('pickle', args.src, 'full.txt'), 'rb') as fin:
         src_x = pickle.load(fin)
@@ -182,6 +188,8 @@ def main():
         trg_x = trg_x.cuda()
     src_size = src_x.size(0)
     trg_size = trg_x.size(0)
+    src_oov_rate = src_x.bincount()[src_vocab.w2idx[UNK_TOK]].item() / src_size
+    trg_oov_rate = trg_x.bincount()[trg_vocab.w2idx[UNK_TOK]].item() / trg_size
     src_train, src_val = src_x[:int(src_size * 0.8)], src_x[int(src_size * 0.8):]
     trg_train, trg_val = trg_x[:int(trg_size * 0.8)], trg_x[int(trg_size * 0.8):]
 
@@ -193,9 +201,11 @@ def main():
     print('\tsrc size:       {}'.format(src_x.size(0)))
     print('\ttrg size:       {}'.format(trg_x.size(0)))
     print('\tsrc train size: {}'.format(src_train.size(0)))
-    print('\tsrc val size :  {}'.format(src_val.size(0)))
+    print('\tsrc val size:   {}'.format(src_val.size(0)))
     print('\ttrg train size: {}'.format(trg_train.size(0)))
-    print('\ttrg val size :  {}'.format(trg_val.size(0)))
+    print('\ttrg val size:   {}'.format(trg_val.size(0)))
+    print('\tsrc oov rate:   {:.4f}'.format(src_oov_rate))
+    print('\ttrg oov rate:   {:.4f}'.format(trg_oov_rate))
     print()
 
     src_train, src_val = batchify(src_train, args.batch_size), batchify(src_val, args.batch_size)
@@ -228,7 +238,10 @@ def main():
             word_discriminator = Discriminator(args.emsize, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
         else:
             word_discriminator = None
-        criterion = nn.NLLLoss()
+        if args.criterion == 'nll':
+            criterion = nn.NLLLoss()
+        else:
+            criterion = WindowSmoothedNLLLoss(args.smooth_eps)
         params = set(src_lm.parameters()) | set(trg_lm.parameters())
         dis_params = list(discriminator.parameters()) + (list(word_discriminator.parameters()) if args.gamma > 0 else [])
         if args.optimizer == 'sgd':
@@ -281,10 +294,10 @@ def main():
             bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
             seq_len = max(5, int(np.random.normal(bptt, 5)))
 
-            if src_p + seq_len > src_train.size(0) - 2:
+            if src_p + seq_len > src_train.size(0) - 2 - args.smooth_size:
                 src_p = 0
                 trainer.reset_src()
-            if trg_p + seq_len > trg_train.size(0) - 2:
+            if trg_p + seq_len > trg_train.size(0) - 2 - args.smooth_size:
                 trg_p = 0
                 trainer.reset_trg()
 
@@ -292,13 +305,21 @@ def main():
             sx, sy = get_batch(src_train, src_p, args.bptt, seq_len=seq_len, batch_first=True, cuda=args.cuda)
             tx, ty = get_batch(trg_train, trg_p, args.bptt, seq_len=seq_len, batch_first=True, cuda=args.cuda)
 
+            if args.criterion == 'nll':
+                src_smooth_idx = trg_smooth_idx = None
+            else:
+                src_smooth_idx = torch.stack([src_train[src_p + k:src_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
+                src_smooth_idx = src_smooth_idx.view(-1, args.smooth_size)
+                trg_smooth_idx = torch.stack([trg_train[trg_p + k:trg_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
+                trg_smooth_idx = trg_smooth_idx.view(-1, args.smooth_size)
+
             if args.dis_nsteps is not None:
                 if (epoch + 1) % (args.dis_nsteps + 1) == 0:
-                    losses = trainer.lm_step(sx, sy, tx, ty)
+                    losses = trainer.lm_step(sx, sy, tx, ty, src_smooth_idx=src_smooth_idx, trg_smooth_idx=trg_smooth_idx)
                 else:
-                    losses = trainer.dis_step(sx, sy, tx, ty)
+                    losses = trainer.dis_step(sx, sy, tx, ty, src_smooth_idx=src_smooth_idx, trg_smooth_idx=trg_smooth_idx)
             else:
-                losses = trainer.step(sx, sy, tx, ty)
+                losses = trainer.step(sx, sy, tx, ty, src_smooth_idx=src_smooth_idx, trg_smooth_idx=trg_smooth_idx)
             total_loss += np.array(losses)
 
             src_p += seq_len
@@ -336,6 +357,7 @@ def main():
                     best_acc = acc
 
                 trainer.set_hidden(*hidden)
+                start_time = time.time()
 
     except KeyboardInterrupt:
         print('-' * 100)
