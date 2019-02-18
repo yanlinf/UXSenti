@@ -24,8 +24,8 @@ def main():
         with open(vocab_f, 'wb') as fout:
             pickle.dump(vocab, fout)
 
-        for f in ['full.txt']:  # + [os.path.join(lang, dom, 'unl') for dom in DOMAINS]:
-            x = load_lm_corpus(os.path.join('data', lang,  f), vocab, random_state=args.seed)
+        for f in [os.path.join(lang, 'full.txt')] + [os.path.join(lang, dom, 'unlabeled.review') for dom in DOMAINS]:
+            x = load_lm_corpus(os.path.join('data', f), vocab, random_state=args.seed)
             size = x.size(0)
             print('[{}] corpus size = {}'.format(f,  size))
             print('[{}] OOV rate = {:.2f}'.format(f, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
