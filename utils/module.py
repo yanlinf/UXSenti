@@ -45,7 +45,7 @@ class WindowSmoothedNLLLoss(nn.Module):
         N, W = smooth_idx.size()
         idx1 = torch.arange(N)
         idx2 = torch.stack([torch.arange(N) for _ in range(W)], -1)
-        neg_loss = (1 - eps) * pred[idx1, target].mean() + eps * pred[idx2, smooth_idx].mean()
+        neg_loss = (1 - self.eps) * pred[idx1, target].mean() + self.eps * pred[idx2, smooth_idx].mean()
         return -neg_loss
 
 if __name__ == '__main__':
