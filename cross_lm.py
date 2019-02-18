@@ -100,6 +100,7 @@ def main():
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
     parser.add_argument('--nhid', type=int, default=1150, help='number of hidden units per layer')
     parser.add_argument('--dis_nhid', type=int, default=1024, help='number of hidden units per layer')
+    parser.add_argument('--nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--wgan', type=bool_flag, nargs='?', const=True, default=False, help='use wgan')
     parser.add_argument('--gamma', type=float, default=0, help='coefficient of the word-level adversarial loss')
@@ -218,7 +219,7 @@ def main():
         src_lm, trg_lm = get_cross_lingual_language_model(src_ntok=len(src_vocab), trg_ntok=len(trg_vocab), emb_sz=args.emsize,
                                                           n_hid=args.nhid, n_layers=args.nlayers, tie_weights=True,
                                                           output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
-                                                          embed_p=args.dropoute, weight_p=args.wdrop)
+                                                          embed_p=args.dropoute, weight_p=args.wdrop, n_share=args.nshare)
 
         dis_in_dim = (args.nlayers - 1) * args.nhid + (args.emsize if args.tied else args.nhid)
         dis_out_dim = 1 if args.wgan else 2
@@ -324,10 +325,10 @@ def main():
                 ans = trainer.evaluate_ptsne(src_val[:args.bptt * 5], trg_val[:args.bptt * 5])
                 plot_tsne(ans, ptsne_path.format(epoch + 1))
 
-                print('-' * 91)
-                print('| epoch {:4d} | acc {:4.2f} | loss {:5.2f} | sppl {:7.2f} | tppl {:7.2f} | dis {:7.4f} | wdis {:7.4f} |'.format(
+                print('-' * 100)
+                print('| epoch {:4d} | acc {:6.4f} | loss {:5.2f} | sppl {:7.2f} | tppl {:7.2f} | dis {:7.4f} | wdis {:7.4f} |'.format(
                     epoch, acc, val_loss[0], math.exp(val_loss[1]), math.exp(val_loss[2]), val_loss[3], val_loss[4]))
-                print('-' * 91)
+                print('-' * 100)
 
                 if acc > best_acc:
                     print('saving model to {}'.format(model_path))
@@ -337,7 +338,7 @@ def main():
                 trainer.set_hidden(*hidden)
 
     except KeyboardInterrupt:
-        print('-' * 91)
+        print('-' * 100)
         print('Keyboard Interrupte - Exiting from training early')
 
     ###############################################################################
