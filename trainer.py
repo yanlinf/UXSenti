@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from sklearn.manifold import TSNE
-from utils.module import GradReverse
+from utils.module import *
 from utils.bdi import compute_nn_accuracy
 from utils.utils import *
 
@@ -36,13 +36,22 @@ class CrossLingualLanguageModelTrainer(object):
         self.src_encoder = list(self.src_lm.children())[0].encoder
         self.trg_encoder = list(self.trg_lm.children())[0].encoder
         self.tsne = TSNE(2)
+        if isinstance(self.criterion, nn.NLLLoss):
+            self.criterion_type = 'nll'
+        elif isinstance(self.criterion, WindowSmoothedNLLLoss):
+            self.criterion_type = 'wsnll'
+        self.nll_criterion = nn.NLLLoss()
 
-    def compute_loss(self, src_x, src_y, trg_x, trg_y, diff_lm=True):
+    def compute_loss(self, src_x, src_y, trg_x, trg_y, diff_lm=True, use_nll=False, **kwargs):
         bs, bptt = src_x.size()
         src_out, src_h, src_dropped_h = self.src_lm(src_x)
         trg_out, trg_h, trg_dropped_h = self.trg_lm(trg_x)
-        src_loss = src_raw_loss = self.criterion(F.log_softmax(src_out.view(-1, src_out.size(-1)), -1), src_y)
-        trg_loss = trg_raw_loss = self.criterion(F.log_softmax(trg_out.view(-1, trg_out.size(-1)), -1), trg_y)
+        if self.criterion_type == 'nll' or use_nll:
+            src_loss = src_raw_loss = self.nll_criterion(F.log_softmax(src_out.view(-1, src_out.size(-1)), -1), src_y)
+            trg_loss = trg_raw_loss = self.nll_criterion(F.log_softmax(trg_out.view(-1, trg_out.size(-1)), -1), trg_y)
+        elif self.criterion_type == 'wsnll':
+            src_loss = src_raw_loss = self.criterion(F.log_softmax(src_out.view(-1, src_out.size(-1)), -1), src_y, kwargs['src_smooth_idx'])
+            trg_loss = trg_raw_loss = self.criterion(F.log_softmax(trg_out.view(-1, trg_out.size(-1)), -1), trg_y, kwargs['trg_smooth_idx'])
 
         src_loss = src_loss + sum(self.alpha * h.pow(2).mean() for h in src_dropped_h[-1:])
         src_loss = src_loss + sum(self.beta * (h[:, 1:] - h[:, :-1]).pow(2).mean() for h in src_h[-1:])
@@ -63,7 +72,7 @@ class CrossLingualLanguageModelTrainer(object):
         if self.use_wgan:
             dis_loss = dis_out[:bs].mean() - dis_out[bs:].mean()
         else:
-            dis_loss = self.criterion(F.log_softmax(dis_out, -1), dis_y)
+            dis_loss = self.nll_criterion(F.log_softmax(dis_out, -1), dis_y)
 
         if self.gamma > 0 and self.word_discriminator is not None:
             wdis_x = torch.cat((self.src_encoder(src_x.contiguous().view(-1)), self.trg_encoder(trg_x.contiguous().view(-1))), 0)
@@ -75,7 +84,7 @@ class CrossLingualLanguageModelTrainer(object):
             if self.use_wgan:
                 wdis_loss = wdis_out[:bs].mean() - wdis_out[bs:].mean()
             else:
-                wdis_loss = self.criterion(F.log_softmax(wdis_out, -1), wdis_y)
+                wdis_loss = self.nll_criterion(F.log_softmax(wdis_out, -1), wdis_y)
         else:
             wdis_loss = 0
 
@@ -96,7 +105,7 @@ class CrossLingualLanguageModelTrainer(object):
             trg_feats = [x.mean(1) for x in trg_feats]
         return src_feats, trg_feats
 
-    def step(self, src_x, src_y, trg_x, trg_y):
+    def step(self, src_x, src_y, trg_x, trg_y, **kwargs):
         """
         src_x: torch.LongTensor of shape (batch_size, src_bptt)
         src_y: torch.LongTensor of shape (batch_size, trg_bptt)
@@ -110,7 +119,7 @@ class CrossLingualLanguageModelTrainer(object):
         self.dis_optimizer.zero_grad()
         lr0 = self.adjust_lr(bptt)
 
-        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y)
+        src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(src_x, src_y, trg_x, trg_y, **kwargs)
         loss = src_loss + trg_loss + dis_loss + wdis_loss
         loss.backward()
 
@@ -218,7 +227,7 @@ class CrossLingualLanguageModelTrainer(object):
         res[0] = x
         return res
 
-    def evaluate(self, src_val, trg_val):
+    def evaluate(self, src_val, trg_val, smooth_size=None):
         """
         src_val: torch.LongTensor of shape (src_val_len, batch_size)
         trg_val: torch.LongTensor of shape (trg_val_len, batch_size)
@@ -227,7 +236,7 @@ class CrossLingualLanguageModelTrainer(object):
         trg_l, bs = trg_val.size()
         length = min(src_l, trg_l)
         bptt = self.bptt
-        length = ((length - 1) // bptt) * bptt
+        length = ((length - 10) // bptt) * bptt
 
         self.eval()
         self.reset()
@@ -240,7 +249,7 @@ class CrossLingualLanguageModelTrainer(object):
             ty = trg_val[i + 1:i + 1 + bptt].t().contiguous().view(-1)
             if self.is_cuda:
                 sx, sy, tx, ty = sx.cuda(), sy.cuda(), tx.cuda(), ty.cuda()
-            src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(sx, sy, tx, ty)
+            src_raw_loss, trg_raw_loss, src_loss, trg_loss, dis_loss, wdis_loss = self.compute_loss(sx, sy, tx, ty, use_nll=True)
             loss = src_loss + trg_loss + dis_loss
             total_losses += np.array([loss, src_raw_loss, trg_raw_loss, dis_loss, wdis_loss])
 
