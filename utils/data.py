@@ -113,7 +113,7 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
         with open(path, 'r', encoding=encoding) as f:
             ntokens = 0
             for line in f:
-                words = line.rstrip().split() + [EOS_TOK]
+                words = line.rstrip().split(' ') + [EOS_TOK]
                 ntokens += len(words)
 
         # second pass: convert tokens to ids
@@ -121,7 +121,7 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
             ids = torch.LongTensor(ntokens)
             p = 0
             for line in f:
-                words = line.rstrip().split() + [EOS_TOK]
+                words = line.rstrip().split(' ') + [EOS_TOK]
                 for w in words:
                     if w in vocab.w2idx:
                         ids[p] = vocab.w2idx[w]
@@ -133,12 +133,12 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
         with open(path, 'r', encoding=encoding) as f:
             corpus = [line.rstrip() + ' ' + EOS_TOK for line in f]
 
-        ntokens = sum(len(line.split()) for line in corpus)
+        ntokens = sum(len(line.split(' ')) for line in corpus)
         ids = torch.LongTensor(ntokens)
         p = 0
         np.random.seed(random_state)
         for i in np.random.permutation(len(corpus)):
-            for w in corpus[i].split():
+            for w in corpus[i].split(' '):
                 if w in vocab.w2idx:
                     ids[p] = vocab.w2idx[w]
                 else:
