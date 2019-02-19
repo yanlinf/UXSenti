@@ -6,7 +6,6 @@ from utils.data import *
 SRC_DIR = 'data/'
 DOMAINS = ['books', 'dvd', 'music']
 PART = ['train.review', 'test.review', 'unlabeled.review']
-TRG_DIR = 'data/'
 EXTRA_TOKENS = ['<eos>', '<unk>', '<pad>']
 
 
@@ -15,11 +14,9 @@ def main():
     parser.add_argument('--size', type=int, default=10000, help='vocabulary size')
     parser.add_argument('--fasttext', action='store_true', help='use fasttext')
     parser.add_argument('--lang', choices=['en', 'fr', 'de', 'ja'], default=['en', 'fr', 'de', 'ja'], nargs='+', help='lanuages to gen vocab')
+    parser.add_argument('-o', '--output', default='data/vocab_{}.txt', help='output template')
     parser.add_argument('--encoding', default='utf-8', help='encoding format')
     args = parser.parse_args()
-
-    if not os.path.exists(TRG_DIR):
-        os.makedirs(TRG_DIR)
 
     for lang in args.lang:
         if args.fasttext:
@@ -28,18 +25,16 @@ def main():
             for w in words:
                 vocab.add_word(w)
         else:
-            corpus = []
-            for dom in DOMAINS:
-                for part in PART:
-                    path = os.path.join(SRC_DIR, lang, dom, part)
-                    with open(path, 'r', encoding=args.encoding) as fin:
-                        corpus += [row.rstrip() for row in fin]
+            with open(os.path.join(SRC_DIR, lang, 'full.txt'), 'r', encoding=args.encoding) as fin:
+                corpus = [row.rstrip() for row in fin]
             vocab = Vocab(corpus)
             vocab.cutoff(args.size - len(EXTRA_TOKENS))
 
         for tok in EXTRA_TOKENS:
             vocab.add_word(tok)
-        vocab.save(os.path.join(TRG_DIR, 'vocab_{}.txt'.format(lang)))
+
+        check_path(args.output.format(lang))
+        vocab.save(args.output.format(lang))
 
 if __name__ == '__main__':
     main()
