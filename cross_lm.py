@@ -90,11 +90,10 @@ def sample(sents, model, n_words, vocab):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-src', '--src', choices=['en', 'fr', 'de', 'jp'], default='en', help='source_language')
-    parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'jp'], default='fr', help='target_language')
+    parser.add_argument('-src', '--src', choices=['en', 'fr', 'de', 'ja'], default='en', help='source_language')
+    parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'ja'], default='fr', help='target_language')
+    parser.add_argument('--data', default='pickle/amazon.10000.dataset', help='traning and testing data')
     parser.add_argument('--lexicon', default='data/muse/en-fr.0-5000.txt', help='lexicon file')
-    parser.add_argument('--src_vocab', default='data/vocab_en.txt', help='src vocab file')
-    parser.add_argument('--trg_vocab', default='data/vocab_fr.txt', help='trg vocab file')
 
     parser.add_argument('--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
     parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
@@ -141,12 +140,7 @@ def main():
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
     args = parser.parse_args()
 
-    sl = 'ja' if args.src == 'jp' else args.src
-    tl = 'ja' if args.trg == 'jp' else args.trg
-    parser.set_defaults(lexicon=os.path.join('data', 'muse', '{}-{}.0-5000.txt'.format(sl, tl)),
-                        src_vocab=os.path.join('data', 'vocab_{}.txt'.format(args.src)),
-                        trg_vocab=os.path.join('data', 'vocab_{}.txt'.format(args.trg)))
-
+    parser.set_defaults(lexicon=os.path.join('data', 'muse', '{}-{}.0-5000.txt'.format(args.src, args.trg)))
     args = parser.parse_args()
 
     # Set the random seed manually for reproducibility.
@@ -173,16 +167,15 @@ def main():
     # Load data
     ###############################################################################
 
-    # load vocabulary
-    with open(os.path.join('pickle', 'vocab_{}.txt'.format(args.src)), 'rb') as fin:
-        src_vocab = pickle.load(fin)
-    with open(os.path.join('pickle', 'vocab_{}.txt'.format(args.trg)), 'rb') as fin:
-        trg_vocab = pickle.load(fin)
+    with open(args.data, 'rb') as fin:
+        dataset = pickle.load(fin)
+
+    src_vocab = dataset[args.src]['vocab']
+    trg_vocab = dataset[args.trg]['vocab']
     lexicon, lex_sz = load_lexicon(args.lexicon, src_vocab, trg_vocab)
-    with open(os.path.join('pickle', args.src, 'full.txt'), 'rb') as fin:
-        src_x = pickle.load(fin)
-    with open(os.path.join('pickle', args.trg, 'full.txt'), 'rb') as fin:
-        trg_x = pickle.load(fin)
+
+    src_x = dataset[args.src]['full']
+    trg_x = dataset[args.trg]['full']
     if args.cuda:
         src_x = src_x.cuda()
         trg_x = trg_x.cuda()
