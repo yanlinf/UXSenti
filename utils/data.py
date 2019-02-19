@@ -8,6 +8,7 @@ from .vocab import *
 
 UNK_TOK = '<unk>'
 EOS_TOK = '<eos>'
+PAD_TOK = '<pad>'
 
 
 def check_path(path):
@@ -50,6 +51,52 @@ def load_vectors(path, maxload=-1):
             x[i] = np.array(tokens[1:], dtype=float)
 
     return words, x
+
+
+def shuffle(random_state, *args):
+    """
+    random_state: int
+    args: List[Tensor]
+
+    returns: List[Tensor]
+    """
+    torch.manual_seed(random_state)
+    size = args[0].size(0)
+    perm = torch.randperm(size)
+    res = [x[perm] for x in args]
+    return res
+
+
+def load_senti_corpus(path, vocab, encoding='utf-8', maxlen=512, random_state=None, labels=['__pos__', '__neg__']):
+    """
+    path: str
+    vocab: Vocab
+    encoding: str
+    maxlen: int
+    random_state: int
+    labels: List[str]
+
+    returns: LongTensor of shape (size, maxlen), LongTensor of shape (size,)
+    """
+    corpus, y = [], []
+    l2i = {l: i for i, l in enumerate(labels)}
+    with open(path, 'r', encoding=encoding) as fin:
+        for line in fin:
+            label, text = line.rstrip().split(' ', 1)
+            y.append(l2i[label])
+            corpus.append([vocab.w2idx[w] if w in vocab else vocab.w2idx[UNK_TOK]
+                           for w in text.split(' ')] + [vocab.w2idx[EOS_TOK]])
+    size = len(corpus)
+    X = torch.full((size, maxlen), vocab.w2idx[PAD_TOK], dtype=torch.int64)
+    l = torch.empty(size, dtype=torch.int64)
+    y = torch.tensor(y)
+    for i, xs in enumerate(corpus):
+        sl = min(len(xs), maxlen)
+        l[i] = sl
+        X[i, :sl] = torch.tensor(xs[:sl])
+    if random_state is not None:
+        X, y, l = shuffle(random_state, X, y, l)
+    return X, y, l
 
 
 def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
