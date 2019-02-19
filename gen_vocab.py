@@ -7,7 +7,7 @@ SRC_DIR = 'data/'
 DOMAINS = ['books', 'dvd', 'music']
 PART = ['train.review', 'test.review', 'unlabeled.review']
 TRG_DIR = 'data/'
-EXTRA_TOKENS = ['<eos>', '<unk>']
+EXTRA_TOKENS = ['<eos>', '<unk>', '<pad>']
 
 
 def main():
