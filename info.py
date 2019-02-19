@@ -8,7 +8,6 @@ from collections import Counter
 DOMAINS = ['books', 'dvd', 'music']
 LANGS = ['en', 'fr', 'de', 'jp']
 BINS = list(range(0, 1050, 50)) + [np.inf]
-TRG_DIR = 'pickle/'
 
 
 def main():
