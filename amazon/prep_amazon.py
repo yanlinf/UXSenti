@@ -26,7 +26,7 @@ def corpus_tokenize(tokenizer, corpus):
         for tok in sent.tokens:
             t = tok.text.lower()
             t = '<num>' if t.isdigit() else t
-            if t == 'EEOOSS':
+            if t == 'eeooss':
                 res.append(' '.join(ans))
                 ans = []
             else:
@@ -70,7 +70,7 @@ def main():
                 for t in root:
                     try:
                         dic = {x.tag: x.text for x in t}
-                        unlabeled_text += dic['text'] + ' EEOOSS '
+                        unlabeled_text += dic['text'] + ' eeooss '
                         if part != 'unlabeled.review':
                             label = '__pos__' if float(dic['rating']) > 3 else '__neg__'
                             tokens = tokenize(tokenizer, dic['text'])
