@@ -19,6 +19,21 @@ def tokenize(tokenizer, doc):
     return res
 
 
+def corpus_tokenize(tokenizer, corpus):
+    res = []
+    ans = []
+    for sent in tokenizer(corpus).sentences:
+        for tok in sent.tokens:
+            t = tok.text.lower()
+            t = '<num>' if t.isdigit() else t
+            if t == 'EEOOSS':
+                res.append(' '.join(ans))
+                ans = []
+            else:
+                ans.append(t)
+    return res
+
+
 def create(path):
     d = os.path.dirname(path)
     if not os.path.exists(d):
@@ -39,8 +54,13 @@ def main():
         trg_lang_file = os.path.join(args.output, lang, 'full.review')
         create(trg_lang_file)
         tokenizer = stanfordnlp.Pipeline(lang=lang, processors='tokenize', use_gpu=(not args.cpu), tokenize_batch_size=args.batch_size)
+        lang_unl = []
 
         for dom in DOMAINS:
+            unlabeled_text = ''
+            trg_lang_dom_file = os.path.join(args.output, lang, dom, 'full.review')
+            create(trg_lang_dom_file)
+
             for part in PART:
                 trg_file = os.path.join(args.output, lang, dom, part)
                 create(trg_file)
@@ -50,26 +70,32 @@ def main():
                 for t in root:
                     try:
                         dic = {x.tag: x.text for x in t}
-                        if part == 'unlabeled.review':
-                            label = '__unk__'
-                        else:
+                        unlabeled_text += dic['text'] + ' EEOOSS '
+                        if part != 'unlabeled.review':
                             label = '__pos__' if float(dic['rating']) > 3 else '__neg__'
-                        tokens = tokenize(tokenizer, dic['text'])
-                        with open(trg_file, 'a', encoding='utf-8') as fout:
-                            fout.write(label + ' ' + ' '.join(tokens) + '\n')
-                        with open(trg_lang_file, 'a', encoding='utf-8') as fout:
-                            fout.write(' '.join(tokens) + '\n')
+                            tokens = tokenize(tokenizer, dic['text'])
+                            with open(trg_file, 'a', encoding='utf-8') as fout:
+                                fout.write(label + ' ' + ' '.join(tokens) + '\n')
 
-                        if label == '__pos__':
-                            npos += 1
-                        elif label == '__neg__':
-                            nneg += 1
+                            if label == '__pos__':
+                                npos += 1
+                            elif label == '__neg__':
+                                nneg += 1
                         nitem += 1
 
                     except Exception as e:
                         print('[ERROR] ignoring item - {}'.format(e))
 
                 print('file: {}   valid: {}   pos: {}   neg: {}'.format(os.path.join(lang, dom, part), nitem, npos, nneg))
+
+            # tokenize unlabeled text
+            sents = corpus_tokenize(tokenizer, unlabeled_text)
+            lang_unl += sents
+            with open(trg_lang_dom_file, 'w', encoding='utf-8') as fout:
+                fout.write('\n'.join(sents) + '\n')
+
+        with open(trg_lang_file, 'w', encoding='utf-8') as fout:
+            fout.write('\n'.join(lang_unl) + '\n')
 
 
 if __name__ == '__main__':
