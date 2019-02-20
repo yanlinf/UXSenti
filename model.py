@@ -25,3 +25,31 @@ def get_cross_lingual_language_model(src_ntok, trg_ntok, emb_sz, n_hid, n_layers
         next(trg_lm.children()).rnns = nn.ModuleList(rnn_list)
 
     return src_lm, trg_lm
+
+
+class Discriminator(nn.Module):
+
+    def __init__(self, in_dim, hid_dim, out_dim, nlayers, dropout):
+        """
+        Discriminator initialization.
+        """
+        super(Discriminator, self).__init__()
+
+        self.in_dim = in_dim
+        self.hid_dim = hid_dim
+        self.out_dim = out_dim
+        self.nlayers = nlayers
+        self.dropout = dropout
+
+        layers = []
+        for i in range(self.nlayers + 1):
+            idim = self.in_dim if i == 0 else self.hid_dim
+            odim = self.hid_dim if i < self.nlayers else self.out_dim
+            layers.append(nn.Linear(idim, odim))
+            if i < self.nlayers:
+                layers.append(nn.ReLU())
+                layers.append(nn.Dropout(self.dropout))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, input):
+        return self.layers(input)
