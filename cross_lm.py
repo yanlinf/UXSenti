@@ -16,9 +16,8 @@ from utils.vocab import *
 from utils.data import *
 from utils.utils import *
 from utils.module import *
-from model import get_cross_lingual_language_model
+from model import get_cross_lingual_language_model, Discriminator
 from trainer import CrossLingualLanguageModelTrainer
-from discriminator import Discriminator
 
 TEST_SENTS = [
     'i love',
