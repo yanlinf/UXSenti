@@ -1,10 +1,10 @@
 import torch
+from torch.utils.data import Dataset, DataLoader
 import os
 import json
 import numpy as np
 import collections
 import argparse
-from .vocab import *
 
 UNK_TOK = '<unk>'
 EOS_TOK = '<eos>'
@@ -198,3 +198,33 @@ def get_batch(source, i, bptt, seq_len=None, evaluation=False, batch_first=False
         target = target.cuda()
 
     return data, target
+
+
+class LMDataset(Dataset):
+
+    def __init__(self, X, batch_size, redundant=10):
+        super().__init__()
+        size = X.size(0) // batch_size
+        X = X.narrow(0, 0, size * batch_size)
+        X = X.view(batch_size, -1).t().contiguous()
+        self.X = X
+        self.redundant = redundant
+
+    def __len__(self):
+        return self.X.size(0) - self.redundant
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.X[idx + 1]
+
+
+class SentiDataset(Dataset):
+
+    def __init__(self, X, y, l):
+        super().__init__()
+        self.X, self.y, self.l = X, y, l
+
+    def __len__(self):
+        return self.X.size(0)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx], self.l[idx]
