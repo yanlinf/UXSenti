@@ -67,7 +67,7 @@ def main():
 
     # optimization
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
-    parser.add_argument('-bs', '--batch_size', type=int, default=80, metavar='N', help='batch size')
+    parser.add_argument('-bs', '--batch_size', type=int, default=30, metavar='N', help='batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
