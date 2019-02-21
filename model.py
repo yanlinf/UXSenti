@@ -105,13 +105,17 @@ class MultiLingualMultiDomainLM(nn.Module):
 
     def reset(self, lid, did):
         model_id = self.get_model_id(lid, did)
+        hidden = next(self.models[model_id].children()).hidden
         self.models[model_id].reset()
-        return self
+        return hidden
+
+    def set_hidden(self, hidden, lid, did):
+        model_id = self.get_model_id(lid, did)
+        next(self.models[model_id].children()).hidden = hidden
 
     def reset_all(self):
         for model in self.models:
             model.reset()
-        return self
 
     def single_loss(self, X, Y, lid, did, return_h=False):
         """
@@ -120,9 +124,12 @@ class MultiLingualMultiDomainLM(nn.Module):
         lid: int
         did: int
         return_h: bool (optional)
+
+        returns: float, float / float, float, List[Tensor]
         """
         bs, bptt = X.size()
-        output, hid, hid_drop = self.forward(X, lid, did)
+        model_id = self.get_model_id(lid, did)
+        output, hid, hid_drop = self.models[model_id](X)
         loss = raw_loss = self.criterion(F.log_softmax(output.view(-1, output.size(-1)), -1), Y.view(-1))
 
         if self.alpha > 0 or self.beta > 0:
@@ -141,6 +148,16 @@ class MultiLingualMultiDomainLM(nn.Module):
         returns: Tensor of shape (vocab_size, emb_dim)
         """
         return self.encoders[lid].weight.data
+
+    def get_language_model(self, lid, did):
+        """
+        lid: int
+        did: int
+
+        returns: nn.Module
+        """
+        model_id = self.get_model_id(lid, did)
+        return self.models[model_id]
 
 
 class Discriminator(nn.Module):
@@ -169,3 +186,110 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         return self.layers(input)
+
+
+class MeanPoolClassifier(nn.Module):
+
+    def __init__(self, in_dim, n_classes):
+        super().__init__()
+        self.in_dim = in_dim
+        self.n_classes = n_classes
+        self.lin = nn.Linear(in_dim, n_classes)
+
+    def forward(self, X, l):
+        """
+        X: Tensor of shape (batch_size, seq_len, in_dim)
+        l: LongTensor of shape (batch_size)
+
+        returns: Tensor of shape (batch_size, n_classes)
+        """
+        bs, sl, _ = X.size()
+        idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
+        mask = (idxes < l.unsqueeze(1)).float()
+        pooled = (X * mask.unsqueeze(-1)).sum(1) / l.float().unsqueeze(-1)
+        return self.lin(pooled)
+
+
+class MaxPoolClassifier(nn.Module):
+
+    def __init__(self, in_dim, n_classes):
+        super().__init__()
+        self.in_dim = in_dim
+        self.n_classes = n_classes
+        self.lin = nn.Linear(in_dim, n_classes)
+
+    def forward(self, X, l):
+        """
+        X: Tensor of shape (batch_size, seq_len, in_dim)
+        l: LongTensor of shape (batch_size)
+
+        returns: Tensor of shape (batch_size, n_classes)
+        """
+        bs, sl, _ = X.size()
+        idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
+        mask = (idxes < l.unsqueeze(1)).float()
+        pooled, _ = (X * mask.unsqueeze(-1)).max(1)
+        return self.lin(pooled)
+
+
+class MeanMaxPoolClassifier(nn.Module):
+
+    def __init__(self, in_dim, n_classes):
+        super().__init__()
+        self.in_dim = in_dim
+        self.n_classes = n_classes
+        self.lin = nn.Linear(in_dim * 2, n_classes)
+
+    def forward(self, X, l):
+        """
+        X: Tensor of shape (batch_size, seq_len, in_dim)
+        l: LongTensor of shape (batch_size)
+
+        returns: Tensor of shape (batch_size, n_classes)
+        """
+        bs, sl, _ = X.size()
+        idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
+        mask = (idxes < l.unsqueeze(1)).float()
+        X_masked = X * mask.unsqueeze(-1)
+        max_pooled, _ = X_masked.max(1)
+        mean_pooled = X_masked.sum(1) / l.float().unsqueeze(-1)
+        return self.lin(torch.cat([max_pooled, mean_pooled], -1))
+
+
+class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
+
+    def __init__(self, n_classes, pool_layer, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.n_classes = n_classes
+        self.pool_layer = pool_layer
+
+        clf_in_dim = self.emb_sz if self.tie_weights else self.n_hid
+
+        if self.pool_layer == 'mean':
+            self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+        elif self.pool_layer == 'max':
+            self.clfs = [MaxPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+        elif self.pool_layer == 'meanmax':
+            self.clfs = [MeanMaxPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+        self.clfs = nn.ModuleList(self.clfs)
+
+    def forward(self, X, lengths, lid, did):
+        prev_h = self.reset(lid, did)
+        _, hidden, _ = super(MultiLingualMultiDomainClassifier, self).forward(X, lid, did)
+        self.set_hidden(prev_h, lid, did)
+        return self.clfs[did](hidden[-1], lengths)
+
+
+if __name__ == '__main__':
+    print('testing MeanPoolClassifier')
+    for k in range(10):
+        x = torch.randn(20, 100, 50)
+        l = torch.randint(10, 40, (20,))
+        clf = MeanPoolClassifier(50, 10)
+        pred = clf(x, l)
+        for i, ll in enumerate(l):
+            x[i, ll:] = 0
+        pooled_gold = x.sum(1) / l.float().unsqueeze(-1)
+        pred_gold = clf.lin(pooled_gold)
+        assert (pred == pred_gold).all()
+        print('passed test {}'.format(k))
