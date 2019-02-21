@@ -19,14 +19,14 @@ from utils.bdi import *
 from utils.module import *
 from model import MultiLingualMultiDomainClassifier, Discriminator
 
-LINE_WIDTH = 93
+LINE_WIDTH = 102
 
 
 def print_line():
     print('-' * LINE_WIDTH)
 
 
-def evaluate(model, ds, lid, did):
+def evaluate(model, ds, lid, did, batch_size):
     acc = 0
     size = 0
     for xs, ys, ls in ds:
@@ -90,6 +90,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=10, help='classification batch size')
+    parser.add_argument('-tbs', '--test_batch_size', type=int, default=50, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
@@ -105,8 +106,12 @@ def main():
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
     parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
     parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
+    parser.add_argument('--debug', action='store_true', help='debug mode')
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
+    args = parser.parse_args()
+    if args.debug:
+        parser.set_defaults(log_interval=20, val_interval=40)
     args = parser.parse_args()
 
     # set random seed
@@ -133,25 +138,23 @@ def main():
 
     lang2id = {lang: i for i, lang in enumerate(args.lang)}
     dom2id = {dom: i for i, dom in enumerate(args.dom)}
-    src_lang_id = lang2id[args.src]
-    trg_lang_id = lang2id[args.trg]
-    dom_id = dom2id[args.sup_dom]
+    src_lang_id, trg_lang_id, dom_id = lang2id[args.src], lang2id[args.trg], dom2id[args.sup_dom]
+
     with open(args.data, 'rb') as fin:
         dataset = pickle.load(fin)
     vocabs = [dataset[lang]['vocab'] for lang in args.lang]
-    unlabeled = [[batchify(dataset[lang][dom]['full'], args.batch_size) for dom in args.dom] for lang in args.lang]
-    unlabeled = [[x.cuda() if args.cuda else x.cpu() for x in t] for t in unlabeled]
-    train_x, train_y, train_l = dataset[args.src][args.sup_dom]['train']
-    test_x, test_y, test_l = dataset[args.trg][args.sup_dom]['test']
-    if args.cuda:
-        train_x, train_y, train_l = train_x.cuda(), train_y.cuda(), train_l.cuda()
-        test_x, test_y, test_l = test_x.cuda(), test_y.cuda(), test_l.cuda()
-    else:
-        train_x, train_y, train_l = train_x.cpu(), train_y.cpu(), train_l.cpu()
-        test_x, test_y, test_l = test_x.cpu(), test_y.cpu(), test_l.cpu()
+    unlabeled = to_device([[batchify(dataset[lang][dom]['full'], args.batch_size) for dom in args.dom] for lang in args.lang], args.cuda)
+
+    train_x, train_y, train_l = to_device(dataset[args.src][args.sup_dom]['train'], args.cuda)
+    val_x, val_y, val_l = to_device(dataset[args.src][args.sup_dom]['test'], args.cuda)
+    test_x, test_y, test_l = to_device(dataset[args.trg][args.sup_dom]['test'], args.cuda)
+
     senti_train = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.clf_batch_size)
-    senti_test = DataLoader(SentiDataset(test_x, test_y, test_l), batch_size=args.clf_batch_size)
-    senti_train_iter = iter(senti_train)
+    train_iter = iter(senti_train)
+    train_ds = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.test_batch_size)
+    val_ds = DataLoader(SentiDataset(val_x, val_y, val_l), batch_size=args.test_batch_size)
+    test_ds = DataLoader(SentiDataset(test_x, test_y, test_l), batch_size=args.test_batch_size)
+    lexicon, lexsz = load_lexicon('data/muse/{}-{}.0-5000.txt'.format(args.src, args.trg), vocabs[src_lang_id], vocabs[trg_lang_id])
     print('Statistics:')
     for lang, v in zip(args.lang, vocabs):
         print('\t{} vocab size: {}'.format(lang, len(v)))
@@ -175,8 +178,6 @@ def main():
         dis_in_dim = args.emsize if args.tied and args.nshare == args.nlayers else args.nhid
         dis_out_dim = len(args.dom)
         dis = Discriminator(dis_in_dim, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
-        criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
-        cross_entropy = nn.CrossEntropyLoss()
 
         if args.optimizer == 'sgd':
             lm_opt = torch.optim.SGD(model.parameters(), lr=args.lm_lr, weight_decay=args.wdecay)
@@ -185,10 +186,13 @@ def main():
             lm_opt = torch.optim.Adam(model.parameters(), lr=args.lm_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
             dis_opt = torch.optim.Adam(dis.parameters(), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
-        if args.cuda:
-            model.cuda()
-            dis.cuda()
-            criterion.cuda()
+    criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
+    cross_entropy = nn.CrossEntropyLoss()
+
+    if args.cuda:
+        model.cuda(), dis.cuda(), criterion.cuda(), cross_entropy.cuda()
+    else:
+        model.cpu(), dis.cpu(), criterion.cpu(), cross_entropy.cpu()
 
     print('Parameters:')
     total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in model.parameters() if x.size())
@@ -245,17 +249,18 @@ def main():
                     #     trg_smooth_idx = torch.stack([trg_train[trg_p + k:trg_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
                     #     trg_smooth_idx = trg_smooth_idx.view(-1, args.smooth_size)
                     raw_loss, loss = model.single_loss(xs, ys, lid=lid, did=did)
+                    loss.backward()
                     batch_loss = batch_loss + loss
                     total_loss[lid, did] += raw_loss.item()
                     ptrs[lid, did] += seq_len
-            batch_loss.backward()
+            # batch_loss.backward()
 
             # classification loss
             try:
-                xs, ys, ls = next(senti_train_iter)
+                xs, ys, ls = next(train_iter)
             except StopIteration:
-                senti_train_iter = iter(senti_train)
-                xs, ys, ls = next(senti_train_iter)
+                train_iter = iter(senti_train)
+                xs, ys, ls = next(train_iter)
             clf_loss = cross_entropy(model(xs, ls, src_lang_id, dom_id), ys)
             total_clf_loss += clf_loss.item()
             (args.gamma * clf_loss).backward()
@@ -270,7 +275,7 @@ def main():
                 total_loss /= args.log_interval
                 total_clf_loss /= args.log_interval
                 elapsed = time.time() - start_time
-                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:6.2f} | lm_loss {:5.2f} | avg_ppl {:7.2f} | clf_loss {:7.4f} |'.format(
+                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:5.2f} | avg_ppl {:7.2f} | clf_loss {:7.4f} |'.format(
                     epoch, lm_opt.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                     total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss))
                 total_loss[:, :] = 0
@@ -279,10 +284,14 @@ def main():
 
             if (epoch + 1) % args.val_interval == 0:
                 model.eval()
-                train_acc = evaluate(model, senti_train, src_lang_id, dom_id)
-                test_acc = evaluate(model, senti_test, trg_lang_id, dom_id)
+                train_acc = evaluate(model, train_ds, src_lang_id, dom_id, args.test_batch_size)
+                val_acc = evaluate(model, val_ds, src_lang_id, dom_id, args.test_batch_size)
+                test_acc = evaluate(model, test_ds, trg_lang_id, dom_id, args.test_batch_size)
+                bdi_acc = compute_nn_accuracy(model.encoder_weight(src_lang_id).cpu().numpy(),
+                                              model.encoder_weight(trg_lang_id).cpu().numpy(),
+                                              lexicon, lexicon_size=lexsz)
                 print_line()
-                print('| epoch {:4d} | train_acc {:.4f} | test_acc {:.4f} |'.format(epoch, train_acc, test_acc))
+                print('| epoch {:4d} | train {:.4f} | val {:.4f} | test {:.4f} | bdi {:.4f} |'.format(epoch, train_acc, val_acc, test_acc, bdi_acc))
                 print_line()
                 if test_acc > best_acc:
                     print('saving model to {}'.format(model_path))
