@@ -299,9 +299,9 @@ def main():
                                                 model.encoder_weight(tid).cpu().numpy(),
                                                 lexicon, 10000, lexicon_size=lexsz) for lexicon, lexsz, tid in lexicons]
                 print_line()
-                print(('| epoch {:4d} | train {:.4f} | val {:.4f} |' +
-                       ' {}_test {:.4f} |' * n_trg +
-                       ' {}_bdi {:.4f} |' * n_trg).format(epoch, train_acc, val_acc,
+                print(('| epoch {:4d} | train {:.4f} | {} {:.4f} |' +
+                       ' {} {:.4f} |' * n_trg +
+                       ' {}_bdi {:.4f} |' * n_trg).format(epoch, train_acc, args.src, val_acc,
                                                           *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
                                                           *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
                 print_line()
