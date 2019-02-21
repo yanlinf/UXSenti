@@ -190,11 +190,12 @@ class Discriminator(nn.Module):
 
 class MeanPoolClassifier(nn.Module):
 
-    def __init__(self, in_dim, n_classes):
+    def __init__(self, in_dim, n_classes, dropout):
         super().__init__()
         self.in_dim = in_dim
         self.n_classes = n_classes
         self.lin = nn.Linear(in_dim, n_classes)
+        self.dp = nn.Dropout(dropout)
 
     def forward(self, X, l):
         """
@@ -207,16 +208,18 @@ class MeanPoolClassifier(nn.Module):
         idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
         mask = (idxes < l.unsqueeze(1)).float()
         pooled = (X * mask.unsqueeze(-1)).sum(1) / l.float().unsqueeze(-1)
-        return self.lin(pooled)
+        dropped = self.dp(pooled)
+        return self.lin(dropped)
 
 
 class MaxPoolClassifier(nn.Module):
 
-    def __init__(self, in_dim, n_classes):
+    def __init__(self, in_dim, n_classes, dropout):
         super().__init__()
         self.in_dim = in_dim
         self.n_classes = n_classes
         self.lin = nn.Linear(in_dim, n_classes)
+        self.dp = nn.Dropout(dropout)
 
     def forward(self, X, l):
         """
@@ -229,16 +232,18 @@ class MaxPoolClassifier(nn.Module):
         idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
         mask = (idxes < l.unsqueeze(1)).float()
         pooled, _ = (X * mask.unsqueeze(-1)).max(1)
-        return self.lin(pooled)
+        dropped = self.dp(pooled)
+        return self.lin(dropped)
 
 
 class MeanMaxPoolClassifier(nn.Module):
 
-    def __init__(self, in_dim, n_classes):
+    def __init__(self, in_dim, n_classes, dropout):
         super().__init__()
         self.in_dim = in_dim
         self.n_classes = n_classes
         self.lin = nn.Linear(in_dim * 2, n_classes)
+        self.dp = nn.Dropout(dropout)
 
     def forward(self, X, l):
         """
@@ -253,12 +258,13 @@ class MeanMaxPoolClassifier(nn.Module):
         X_masked = X * mask.unsqueeze(-1)
         max_pooled, _ = X_masked.max(1)
         mean_pooled = X_masked.sum(1) / l.float().unsqueeze(-1)
-        return self.lin(torch.cat([max_pooled, mean_pooled], -1))
+        dropped = self.dp(torch.cat([max_pooled, mean_pooled], -1))
+        return self.lin(dropped)
 
 
 class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
 
-    def __init__(self, n_classes, pool_layer, *args, **kwargs):
+    def __init__(self, n_classes, pool_layer, clf_dropout, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.n_classes = n_classes
         self.pool_layer = pool_layer
@@ -266,11 +272,11 @@ class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
         clf_in_dim = self.emb_sz if self.tie_weights else self.n_hid
 
         if self.pool_layer == 'mean':
-            self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+            self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
         elif self.pool_layer == 'max':
-            self.clfs = [MaxPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+            self.clfs = [MaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
         elif self.pool_layer == 'meanmax':
-            self.clfs = [MeanMaxPoolClassifier(clf_in_dim, n_classes) for _ in range(self.n_langs)]
+            self.clfs = [MeanMaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
         self.clfs = nn.ModuleList(self.clfs)
 
     def forward(self, X, lengths, lid, did):
@@ -285,11 +291,11 @@ if __name__ == '__main__':
     for k in range(10):
         x = torch.randn(20, 100, 50)
         l = torch.randint(10, 40, (20,))
-        clf = MeanPoolClassifier(50, 10)
+        clf = MeanPoolClassifier(50, 10, 0.2).eval()
         pred = clf(x, l)
         for i, ll in enumerate(l):
             x[i, ll:] = 0
         pooled_gold = x.sum(1) / l.float().unsqueeze(-1)
-        pred_gold = clf.lin(pooled_gold)
+        pred_gold = clf.lin(clf.dp(pooled_gold))
         assert (pred == pred_gold).all()
         print('passed test {}'.format(k))
