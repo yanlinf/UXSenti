@@ -72,6 +72,7 @@ def main():
     parser.add_argument('--gamma', type=float, default=1, help='coefficient of the classification loss')
 
     # regularization
+    parser.add_argument('--clf_dropout', type=float, default=0.6, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--dropout', type=float, default=0.4, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--dropouth', type=float, default=0.3, help='dropout for rnn layers (0 = no dropout)')
     parser.add_argument('--dropouti', type=float, default=0.65, help='dropout for input embedding layers (0 = no dropout)')
@@ -88,8 +89,8 @@ def main():
 
     # optimization
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
-    parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
-    parser.add_argument('-cbs', '--clf_batch_size', type=int, default=10, help='classification batch size')
+    parser.add_argument('-bs', '--batch_size', type=int, default=40, help='batch size')
+    parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=50, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
@@ -175,7 +176,7 @@ def main():
         model, dis, lm_opt, dis_opt = model_load(args.resume)
 
     else:
-        model = MultiLingualMultiDomainClassifier(n_classes=2, pool_layer=args.pool,
+        model = MultiLingualMultiDomainClassifier(n_classes=2, pool_layer=args.pool, clf_dropout=args.clf_dropout,
                                                   n_langs=len(args.lang), n_doms=len(args.dom), n_tok=list(map(len, vocabs)),
                                                   emb_sz=args.emsize, n_hid=args.nhid, n_layers=args.nlayers,
                                                   n_share=args.nshare, tie_weights=args.tied,
