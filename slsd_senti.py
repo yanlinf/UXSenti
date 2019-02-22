@@ -96,8 +96,9 @@ def main():
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
-    parser.add_argument('--lm_lr', type=float, default=0.003, help='initial learning rate')
-    parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate')
+    parser.add_argument('--lm_lr', type=float, default=0.003, help='initial learning rate for the language model')
+    parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate for the discriminators')
+    parser.add_argument('--clf_lr', type=float, default=0.003, help='initial learning rate for the classifier')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
     parser.add_argument('--dis_clip', type=float, default=0.01, help='gradient clipping')
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
@@ -187,11 +188,14 @@ def main():
         dis_out_dim = len(args.dom)
         dis = Discriminator(dis_in_dim, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
 
+        param_splits = [{'params': model.models.parameters(),  'lr': args.lm_lr},
+                        {'params': model.clfs.parameters(), 'lr': args.clf_lr}]
+
         if args.optimizer == 'sgd':
-            lm_opt = torch.optim.SGD(model.parameters(), lr=args.lm_lr, weight_decay=args.wdecay)
+            lm_opt = torch.optim.SGD(param_splits, weight_decay=args.wdecay)
             dis_opt = torch.optim.SGD(dis.parameters(), lr=args.dis_lr, weight_decay=args.wdecay)
         if args.optimizer == 'adam':
-            lm_opt = torch.optim.Adam(model.parameters(), lr=args.lm_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
+            lm_opt = torch.optim.Adam(param_splits, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
             dis_opt = torch.optim.Adam(dis.parameters(), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
     criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
@@ -321,7 +325,7 @@ def main():
     # Testing
     ###############################################################################
 
-    trainer = model_load(model_path)   # Load the best saved model.
+    model, dis, lm_opt, dis_opt = model_load(model_path)   # Load the best saved model.
 
 
 if __name__ == '__main__':
