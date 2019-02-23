@@ -19,7 +19,7 @@ from utils.bdi import *
 from utils.module import *
 from model import MultiLingualMultiDomainClassifier, Discriminator
 
-LINE_WIDTH = 141
+LINE_WIDTH = 138
 
 
 def print_line():
@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--dom', choices=['books', 'dvd', 'music'], nargs='+', default=['books', 'dvd', 'music'], help='domains')
     parser.add_argument('--data', default='pickle/amazon.10000.dataset', help='traning and testing data')
     parser.add_argument('--resume', help='path of model to resume')
+    parser.add_argument('--val_size', type=int, default=400, help='validation set size')
 
     # architecture
     parser.add_argument('--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
@@ -151,13 +152,13 @@ def main():
     unlabeled = to_device([[batchify(dataset[lang][dom]['full'], args.batch_size) for dom in args.dom] for lang in args.lang], args.cuda)
 
     train_x, train_y, train_l = to_device(dataset[args.src][args.sup_dom]['train'], args.cuda)
-    val_x, val_y, val_l = to_device(dataset[args.src][args.sup_dom]['test'], args.cuda)
+    val_ds = [sample(to_device(dataset[t][args.sup_dom]['train'], args.cuda), args.val_size) for t in args.trg]
     test_ds = [to_device(dataset[t][args.sup_dom]['test'], args.cuda) for t in args.trg]
 
     senti_train = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.clf_batch_size)
     train_iter = iter(senti_train)
     train_ds = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.test_batch_size)
-    val_ds = DataLoader(SentiDataset(val_x, val_y, val_l), batch_size=args.test_batch_size)
+    val_ds = [DataLoader(SentiDataset(*data), batch_size=args.test_batch_size) for data in val_ds]
     test_ds = [DataLoader(SentiDataset(*data), batch_size=args.test_batch_size) for data in test_ds]
     lexicons = []
     for tid, tlang in zip(trg_ids, args.trg):
@@ -222,7 +223,7 @@ def main():
     ###############################################################################
 
     # Loop over epochs.
-    best_acc = 0.
+    best_accs = {tlang: 0. for tlang in args.trg}
     print('Traning:')
     print_line()
     # At any point you can hit Ctrl + C to break out of training early.
@@ -301,23 +302,27 @@ def main():
             if (epoch + 1) % args.val_interval == 0:
                 model.eval()
                 train_acc = evaluate(model, train_ds, src_id, dom_id, args.test_batch_size)
-                val_acc = evaluate(model, val_ds, src_id, dom_id, args.test_batch_size)
+                val_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, val_ds)]
                 test_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, test_ds)]
                 bdi_accs = [compute_nn_accuracy(model.encoder_weight(src_id).cpu().numpy(),
                                                 model.encoder_weight(tid).cpu().numpy(),
                                                 lexicon, 10000, lexicon_size=lexsz) for lexicon, lexsz, tid in lexicons]
                 print_line()
-                print(('| epoch {:4d} | train {:.4f} | {} {:.4f} |' +
-                       ' {} {:.4f} |' * n_trg +
-                       ' {}_bdi {:.4f} |' * n_trg).format(epoch, train_acc, args.src, val_acc,
-                                                          *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
-                                                          *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
+                print(('| epoch {:4d} | train {:.4f} |' +
+                       ' val' + ' {} {:.4f}' * n_trg + ' |' +
+                       ' test' + ' {} {:.4f}' * n_trg + ' |' +
+                       ' bdi' + ' {} {:.4f}' * n_trg + ' |').format(epoch, train_acc,
+                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, val_accs)], []),
+                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
+                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
                 print_line()
-                avg_acc = np.mean(test_accs)
-                if avg_acc > best_acc:
-                    print('saving model to {}'.format(model_path))
-                    model_save(model, dis, lm_opt, dis_opt, model_path)
-                    best_acc = avg_acc
+                for tlang, val_acc in zip(args.trg, val_accs):
+                    if val_acc > best_accs[tlang]:
+                        save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
+                        print('saving {} model to {}'.format(tlang, save_path))
+                        model_save(model, dis, lm_opt, dis_opt, save_path)
+                        best_accs[tlang] = val_acc
+
                 model.train()
                 start_time = time.time()
 
@@ -329,8 +334,15 @@ def main():
     # Testing
     ###############################################################################
 
-    model, dis, lm_opt, dis_opt = model_load(model_path)   # Load the best saved model.
-
+    test_accs = []
+    for tid, tlang, ds in zip(trg_ids, args.trg, test_ds):
+        save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
+        model, _, _, _ = model_load(save_path)   # Load the best saved model.
+        model.eval()
+        test_accs.append(evaluate(model, ds, tid, dom_id, args.test_batch_size))
+    print_line()
+    print(('|' + ' {}_test {:.4f} |' * n_trg).format(*sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], [])))
+    print_line()
 
 if __name__ == '__main__':
     main()
