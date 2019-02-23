@@ -89,10 +89,11 @@ def main():
 
     # optimization
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
-    parser.add_argument('-bs', '--batch_size', type=int, default=40, help='batch size')
+    parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=50, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
+    parser.add_argument('--fix_bptt', action='store_true', help='fix bptt length')
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
@@ -236,8 +237,11 @@ def main():
         for epoch in range(args.epochs):
 
             # sample seq_len
-            bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
-            seq_len = max(5, int(np.random.normal(bptt, 5)))
+            if args.fix_bptt:
+                seq_len = args.bptt
+            else:
+                bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
+                seq_len = max(5, int(np.random.normal(bptt, 5)))
             lr0 = lm_opt.param_groups[0]['lr']
             lm_opt.param_groups[0]['lr'] = lr0 * seq_len / args.bptt
 
