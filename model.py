@@ -286,6 +286,60 @@ class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
         return self.clfs[did](hidden[-1], lengths)
 
 
+class MaxPoolLayer(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        pooled, _ = x.max(1)
+        return pooled
+
+
+class MeanPoolLayer(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x.mean(1)
+
+
+class MeanMaxPoolLayer(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        max_pooled, _ = x.max(1)
+        mean_pooled = x.mean(1)
+        return torch.cat([max_pooled, mean_pooled], -1)
+
+
+def get_pooling_layer(pool_layer):
+    return {
+        'mean': MeanPoolLayer,
+        'max': MaxPoolLayer,
+        'meanmax': MeanMaxPoolLayer,
+    }.get(pool_layer)()
+
+
+class PoolDiscriminator(nn.Module):
+
+    def __init__(self, pool_layer, in_dim, hid_dim, out_dim, nlayers, dropout):
+        super().__init__()
+
+        clf_in_dim = {
+            'mean': in_dim,
+            'max': in_dim,
+            'meanmax': in_dim * 2,
+        }.get(pool_layer)
+        self.clf = Discriminator(clf_in_dim, hid_dim, out_dim, nlayers, dropout)
+        self.pool = get_pooling_layer(pool_layer)
+
+    def forward(self, x):
+        return self.clf(self.pool(x))
+
 if __name__ == '__main__':
     print('testing MeanPoolClassifier')
     for k in range(10):
