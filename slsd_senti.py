@@ -17,7 +17,7 @@ from utils.data import *
 from utils.utils import *
 from utils.bdi import *
 from utils.module import *
-from model import MultiLingualMultiDomainClassifier, Discriminator
+from model import MultiLingualMultiDomainClassifier, Discriminator, get_pooling_layer
 
 LINE_WIDTH = 138
 
@@ -37,15 +37,15 @@ def evaluate(model, ds, lid, did, batch_size):
     return acc / size
 
 
-def model_save(model, dis, lm_opt, dis_opt, path):
+def model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, path):
     with open(path, 'wb') as f:
-        torch.save([model, dis, lm_opt, dis_opt], f)
+        torch.save([model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt], f)
 
 
 def model_load(path):
     with open(path, 'rb') as f:
-        model, dis, lm_opt, dis_opt = torch.load(f)
-    return model, dis, lm_opt, dis_opt
+        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = torch.load(f)
+    return model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt
 
 
 def main():
@@ -57,7 +57,7 @@ def main():
     parser.add_argument('--dom', choices=['books', 'dvd', 'music'], nargs='+', default=['books', 'dvd', 'music'], help='domains')
     parser.add_argument('--data', default='pickle/amazon.10000.dataset', help='traning and testing data')
     parser.add_argument('--resume', help='path of model to resume')
-    parser.add_argument('--val_size', type=int, default=400, help='validation set size')
+    parser.add_argument('--val_size', type=int, default=600, help='validation set size')
 
     # architecture
     parser.add_argument('--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
@@ -92,7 +92,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=8000000, help='upper epoch limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
-    parser.add_argument('-tbs', '--test_batch_size', type=int, default=50, help='classification batch size')
+    parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--fix_bptt', action='store_true', help='fix bptt length')
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
@@ -176,7 +176,7 @@ def main():
     ###############################################################################
 
     if args.resume:
-        model, dis, lm_opt, dis_opt = model_load(args.resume)
+        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(args.resume)
 
     else:
         model = MultiLingualMultiDomainClassifier(n_classes=2, pool_layer=args.pool, clf_dropout=args.clf_dropout,
@@ -186,27 +186,36 @@ def main():
                                                   output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                   embed_p=args.dropoute, weight_p=args.wdrop, alpha=args.alpha, beta=args.beta)
 
-        dis_in_dim = args.emsize if args.tied and args.nshare == args.nlayers else args.nhid
-        dis_out_dim = len(args.dom)
-        dis = Discriminator(dis_in_dim, args.dis_nhid, dis_out_dim, nlayers=args.dis_nlayers, dropout=0.1)
+        lang_dis = nn.ModuleList([Discriminator(args.emsize if args.tied else args.nhid, args.dis_nhid,
+                                                len(args.lang), nlayers=args.dis_nlayers, dropout=0.1) for _ in range(len(args.dom))])
+        dom_dis = Discriminator(args.nhid * 2 if args.pool == 'meanmax' else args.nhid, args.dis_nhid, len(args.dom), nlayers=args.dis_nlayers, dropout=0.1)
+        pool_layer = get_pooling_layer(args.pool)
 
         param_splits = [{'params': model.models.parameters(),  'lr': args.lm_lr},
                         {'params': model.clfs.parameters(), 'lr': args.clf_lr}]
 
         if args.optimizer == 'sgd':
             lm_opt = torch.optim.SGD(param_splits, weight_decay=args.wdecay)
-            dis_opt = torch.optim.SGD(dis.parameters(), lr=args.dis_lr, weight_decay=args.wdecay)
+            dis_opt = torch.optim.SGD(list(lang_dis.parameters()) + list(dom_dis.parameters()), lr=args.dis_lr, weight_decay=args.wdecay)
         if args.optimizer == 'adam':
             lm_opt = torch.optim.Adam(param_splits, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
-            dis_opt = torch.optim.Adam(dis.parameters(), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
+            dis_opt = torch.optim.Adam(list(lang_dis.parameters()) + list(dom_dis.parameters()), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
+    grad_rev_layer_lang = GradReverse(args.lambd)
+    grad_rev_layer_dom = GradReverse(args.lambd)
     criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
     cross_entropy = nn.CrossEntropyLoss()
 
+    bs = args.batch_size
+    n_doms = len(args.dom)
+    n_langs = len(args.lang)
+    lang_dis_y = to_device(torch.arange(n_langs).unsqueeze(-1).expand(n_langs, bs).contiguous().view(-1).contiguous(), args.cuda)
+    dom_dis_y = to_device(torch.arange(n_doms).view(1, n_doms, 1).expand(n_langs, n_doms, bs).contiguous().view(-1).contiguous(), args.cuda)
+
     if args.cuda:
-        model.cuda(), dis.cuda(), criterion.cuda(), cross_entropy.cuda()
+        model.cuda(), lang_dis.cuda(), dom_dis.cuda(), criterion.cuda(), cross_entropy.cuda()
     else:
-        model.cpu(), dis.cpu(), criterion.cpu(), cross_entropy.cpu()
+        model.cpu(), lang_dis.cpu(), dom_dis.cuda(), criterion.cpu(), cross_entropy.cpu()
 
     print('Parameters:')
     total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in model.parameters() if x.size())
@@ -214,7 +223,9 @@ def main():
     print('\tparam list:     {}'.format(len(list(model.parameters()))))
     for name, x in model.named_parameters():
         print('\t' + name + '\t', tuple(x.size()))
-    for name, x in dis.named_parameters():
+    for name, x in lang_dis.named_parameters():
+        print('\t' + name + '\t', tuple(x.size()))
+    for name, x in dom_dis.named_parameters():
         print('\t' + name + '\t', tuple(x.size()))
     print()
 
@@ -232,6 +243,8 @@ def main():
         ptrs = np.zeros((len(args.lang), len(args.dom)), dtype=np.int64)  # shape (n_lang, n_dom)
         total_loss = np.zeros((len(args.lang), len(args.dom)))  # shape (n_lang, n_dom)
         total_clf_loss = 0
+        total_dom_dis_loss = 0
+        total_lang_dis_loss = np.zeros(len(args.dom))
         start_time = time.time()
         model.train()
         model.reset_all()
@@ -249,6 +262,8 @@ def main():
             batch_loss = 0
             lm_opt.zero_grad()
 
+            dom_dis_x = []
+            lang_dis_x = [[] for _ in range(len(args.dom))]
             # lm loss
             for lid, t in enumerate(unlabeled):
                 for did, lm_x in enumerate(t):
@@ -265,12 +280,27 @@ def main():
                     #     src_smooth_idx = src_smooth_idx.view(-1, args.smooth_size)
                     #     trg_smooth_idx = torch.stack([trg_train[trg_p + k:trg_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
                     #     trg_smooth_idx = trg_smooth_idx.view(-1, args.smooth_size)
-                    raw_loss, loss = model.single_loss(xs, ys, lid=lid, did=did)
-                    loss.backward()
-                    batch_loss = batch_loss + loss
+                    raw_loss, loss, hid = model.single_loss(xs, ys, lid=lid, did=did, return_h=True)
+                    if args.lambd == 0.:
+                        loss.backward()
+                    else:
+                        batch_loss = batch_loss + loss
+                        lang_dis_x[did].append(pool_layer(hid[-1]))
+                        dom_dis_x.append(pool_layer(hid[args.nshare - 1]))
                     total_loss[lid, did] += raw_loss.item()
                     ptrs[lid, did] += seq_len
-            # batch_loss.backward()
+
+            if args.lambd != 0:
+                for did in range(len(args.dom)):
+                    xtmp = grad_rev_layer_lang(torch.cat(lang_dis_x[did], 0))
+                    lang_dis_loss = cross_entropy(lang_dis[did](xtmp), lang_dis_y)
+                    batch_loss = batch_loss + lang_dis_loss
+                    total_lang_dis_loss[did] += lang_dis_loss.item()
+                dom_dis_x = grad_rev_layer_dom(torch.cat(dom_dis_x, 0))
+                dom_dis_loss = cross_entropy(dom_dis(dom_dis_x), dom_dis_y)
+                batch_loss = batch_loss + dom_dis_loss
+                batch_loss.backward()
+                total_dom_dis_loss += dom_dis_loss.item()
 
             # classification loss
             try:
@@ -283,7 +313,7 @@ def main():
             (args.gamma * clf_loss).backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.lm_clip)
-            for x in dis.parameters():
+            for x in list(lang_dis.parameters()) + list(dom_dis.parameters()):
                 x.data.clamp_(-args.dis_clip, args.dis_clip)
             lm_opt.step()
             lm_opt.param_groups[0]['lr'] = lr0
@@ -291,12 +321,16 @@ def main():
             if (epoch + 1) % args.log_interval == 0:
                 total_loss /= args.log_interval
                 total_clf_loss /= args.log_interval
+                total_lang_dis_loss /= args.log_interval
+                total_dom_dis_loss /= args.log_interval
                 elapsed = time.time() - start_time
-                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:5.2f} | avg_ppl {:7.2f} | clf_loss {:7.4f} |'.format(
+                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:5.2f} | avg_ppl {:7.2f} | clf {:7.4f} | avg_lang {:7.4f} | dom {:7.4f} |'.format(
                     epoch, lm_opt.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
-                    total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss))
+                    total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss, total_lang_dis_loss.mean(), total_dom_dis_loss))
                 total_loss[:, :] = 0
                 total_clf_loss = 0
+                total_lang_dis_loss[:] = 0
+                total_dom_dis_loss = 0
                 start_time = time.time()
 
             if (epoch + 1) % args.val_interval == 0:
@@ -320,7 +354,7 @@ def main():
                     if val_acc > best_accs[tlang]:
                         save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
                         print('saving {} model to {}'.format(tlang, save_path))
-                        model_save(model, dis, lm_opt, dis_opt, save_path)
+                        model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, save_path)
                         best_accs[tlang] = val_acc
 
                 model.train()
@@ -337,7 +371,7 @@ def main():
     test_accs = []
     for tid, tlang, ds in zip(trg_ids, args.trg, test_ds):
         save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
-        model, _, _, _ = model_load(save_path)   # Load the best saved model.
+        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(save_path)   # Load the best saved model.
         model.eval()
         test_accs.append(evaluate(model, ds, tid, dom_id, args.test_batch_size))
     print_line()
