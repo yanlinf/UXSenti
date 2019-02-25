@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import stanfordnlp
 import argparse
+import time
 import os
 
 SRC_DIR = 'cls-acl10-unprocessed/'
@@ -55,15 +56,18 @@ def main():
         create(trg_lang_file)
         tokenizer = stanfordnlp.Pipeline(lang=lang, processors='tokenize', use_gpu=(not args.cpu), tokenize_batch_size=args.batch_size)
         lang_unl = []
+        trg_lang_sents = []
 
         for dom in DOMAINS:
             unlabeled_text = ''
             trg_lang_dom_file = os.path.join(args.output, lang, dom, 'full.review')
             create(trg_lang_dom_file)
+            trg_lang_dom_sents = []
 
             for part in PART:
                 trg_file = os.path.join(args.output, lang, dom, part)
                 create(trg_file)
+                t0 = time.time()
 
                 root = ET.parse(os.path.join(SRC_DIR, lang, dom, part)).getroot()
                 nitem, npos, nneg = 0, 0, 0
@@ -71,9 +75,10 @@ def main():
                     try:
                         dic = {x.tag: x.text for x in t}
                         unlabeled_text += dic['text'] + ' eeooss '
+                        tokens = tokenize(tokenizer, dic['text'])
                         if part != 'unlabeled.review':
                             label = '__pos__' if float(dic['rating']) > 3 else '__neg__'
-                            tokens = tokenize(tokenizer, dic['text'])
+
                             with open(trg_file, 'a', encoding='utf-8') as fout:
                                 fout.write(label + ' ' + ' '.join(tokens) + '\n')
 
@@ -81,21 +86,33 @@ def main():
                                 npos += 1
                             elif label == '__neg__':
                                 nneg += 1
+
+                        if part != 'test.review':
+                            trg_lang_dom_sents.append(' '.join(tokens))
+                            trg_lang_sents.append(' '.join(tokens))
+
                         nitem += 1
 
                     except Exception as e:
                         print('[ERROR] ignoring item - {}'.format(e))
 
-                print('file: {}   valid: {}   pos: {}   neg: {}'.format(os.path.join(lang, dom, part), nitem, npos, nneg))
+                duration = (time.time() - t0) * 1000
+                print('file: {}   valid: {}   pos: {}   neg: {}   ms/item: {:.2f}'.format(os.path.join(lang, dom, part), nitem, npos, nneg, duration / nitem))
 
             # tokenize unlabeled text
-            sents = corpus_tokenize(tokenizer, unlabeled_text)
-            lang_unl += sents
+            # print('tokenizing unlabeled example of {} characters'.format(len(unlabeled_text)))
+            # t0 = time.time()
+            # sents = corpus_tokenize(tokenizer, unlabeled_text)
+            # print('finished in {:.2f} seconds'.format(time.time() - t0))
+            # lang_unl += sents
+            # with open(trg_lang_dom_file, 'w', encoding='utf-8') as fout:
+            #     fout.write('\n'.join(sents) + '\n')
+
             with open(trg_lang_dom_file, 'w', encoding='utf-8') as fout:
-                fout.write('\n'.join(sents) + '\n')
+                fout.write('\n'.join(trg_lang_dom_sents) + '\n')
 
         with open(trg_lang_file, 'w', encoding='utf-8') as fout:
-            fout.write('\n'.join(lang_unl) + '\n')
+            fout.write('\n'.join(trg_lang_sents) + '\n')
 
 
 if __name__ == '__main__':
