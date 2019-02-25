@@ -70,7 +70,7 @@ def main():
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
     parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='max', help='pooling layer')
     parser.add_argument('--lambd', type=float, default=1, help='coefficient of the adversarial loss')
-    parser.add_argument('--gamma', type=float, default=1, help='coefficient of the classification loss')
+    parser.add_argument('--gamma', type=float, default=0.01, help='coefficient of the classification loss')
 
     # regularization
     parser.add_argument('--clf_dropout', type=float, default=0.6, help='dropout applied to layers (0 = no dropout)')
@@ -81,7 +81,7 @@ def main():
     parser.add_argument('--wdrop', type=float, default=0.5, help='amount of weight dropout to apply to the RNN hidden to hidden matrix')
     parser.add_argument('--alpha', type=float, default=2, help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
     parser.add_argument('--beta', type=float, default=1, help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
-    parser.add_argument('--wdecay', type=float, default=1e-6, help='weight decay applied to all weights')
+    parser.add_argument('--wdecay', type=float, default=1.2e-6, help='weight decay applied to all weights')
 
     # loss function
     parser.add_argument('--criterion', choices=['nll', 'wsnll'], default='nll')
@@ -99,7 +99,7 @@ def main():
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
     parser.add_argument('--lm_lr', type=float, default=0.003, help='initial learning rate for the language model')
-    parser.add_argument('--dis_lr', type=float, default=0.0003, help='initial learning rate for the discriminators')
+    parser.add_argument('--dis_lr', type=float, default=0.003, help='initial learning rate for the discriminators')
     parser.add_argument('--clf_lr', type=float, default=0.003, help='initial learning rate for the classifier')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
     parser.add_argument('--dis_clip', type=float, default=0.01, help='gradient clipping')
