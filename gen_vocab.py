@@ -18,6 +18,8 @@ def main():
     parser.add_argument('--encoding', default='utf-8', help='encoding format')
     args = parser.parse_args()
 
+    print(str(args))
+
     for lang in args.lang:
         if args.fasttext:
             words, _ = load_vectors('data/wiki.{}.vec'.format(lang), maxload=(args.size - len(EXTRA_TOKENS)))
@@ -25,7 +27,7 @@ def main():
             for w in words:
                 vocab.add_word(w)
         else:
-            with open(os.path.join(SRC_DIR, lang, 'full.txt'), 'r', encoding=args.encoding) as fin:
+            with open(os.path.join(SRC_DIR, lang, 'full.review'), 'r', encoding=args.encoding) as fin:
                 corpus = [row.rstrip() for row in fin]
             vocab = Vocab(corpus)
             vocab.cutoff(args.size - len(EXTRA_TOKENS))
