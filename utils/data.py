@@ -148,6 +148,27 @@ def load_lm_corpus(path, vocab, encoding='utf-8', random_state=None):
     return ids
 
 
+def load_vectors_with_vocab(path, vocab, maxload=-1):
+    """
+    path: str
+    vocab: Vocab
+    maxload: int
+    """
+    count = 0
+    with open(path, 'r', encoding='utf-8', newline='\n', errors='ignore') as fin:
+        n, d = map(int, fin.readline().split(' '))
+        x = np.zeros([len(vocab), d])
+        words = []
+        for i, line in enumerate(fin):
+            if maxload > 0 and i >= maxload:
+                break
+            tokens = line.rstrip().split(' ')
+            if tokens[0] in vocab:
+                x[vocab.w2idx[tokens[0]]] = np.array(tokens[1:], dtype=float)
+                count += 1
+    return x, count
+
+
 def load_lexicon(path, src_vocab, trg_vocab, encoding='utf-8', verbose=False):
     """
     path: str
