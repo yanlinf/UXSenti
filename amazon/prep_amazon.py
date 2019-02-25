@@ -85,6 +85,7 @@ def main():
                 for t in root:
                     try:
                         dic = {x.tag: x.text for x in t}
+                        assert isinstance(dic['text'], str)
 
                         if part != 'unlabeled.review':
                             tokens = tokenize(tokenizer, dic['text'])
