@@ -230,8 +230,8 @@ class MaxPoolClassifier(nn.Module):
         """
         bs, sl, _ = X.size()
         idxes = torch.arange(0, sl).unsqueeze(0).to(X.device)
-        mask = (idxes < l.unsqueeze(1)).float()
-        pooled, _ = (X * mask.unsqueeze(-1)).max(1)
+        mask = (idxes >= l.unsqueeze(1)).float() * 1e3
+        pooled, _ = (X - mask.unsqueeze(-1)).max(1)
         dropped = self.dp(pooled)
         return self.lin(dropped)
 
