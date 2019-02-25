@@ -10,6 +10,14 @@ DOMAINS = ['books', 'dvd', 'music']
 PART = ['train.review', 'test.review', 'unlabeled.review']
 
 
+def create(path):
+    d = os.path.dirname(path)
+    if not os.path.exists(d):
+        os.makedirs(d)
+    with open(path, 'w', encoding='utf-8') as fout:
+        pass
+
+
 class Tokenizer(object):
     """
     a tokenizer for multiple languages (western languages and Japanese supported)
@@ -55,14 +63,16 @@ def main():
 
     for lang in LANGS:
         tokenizer = Tokenizer(lang, lower_case=True, num_token='<num>')
-        trg_lang_file = os.path.join(TRG_DIR, lang, 'full.txt')
+        trg_lang_file = os.path.join(TRG_DIR, lang, 'full.review')
+        create(trg_lang_file)
 
         for dom in DOMAINS:
+            trg_lang_dom_file = os.path.join(TRG_DIR, lang, dom, 'full.review')
+            create(trg_lang_dom_file)
+
             for part in PART:
                 trg_file = os.path.join(TRG_DIR, lang, dom, part)
-                trg_dir = os.path.dirname(trg_file)
-                if not os.path.exists(trg_dir):
-                    os.makedirs(trg_dir)
+                create(trg_file)
 
                 root = ET.parse(os.path.join(SRC_DIR, lang, dom, part)).getroot()
                 nitem, npos, nneg = 0, 0, 0
@@ -80,8 +90,12 @@ def main():
                         with open(trg_file, 'a', encoding='utf-8') as fout:
                             fout.write(label + ' ' + ' '.join(tokens) + '\n')
 
-                        with open(trg_lang_file, 'a', encoding='utf-8') as fout:
-                            fout.write(' '.join(tokens) + '\n')
+                        if part != 'test.review':
+                            with open(trg_lang_file, 'a', encoding='utf-8') as fout:
+                                fout.write(' '.join(tokens) + '\n')
+
+                            with open(trg_lang_dom_file, 'a', encoding='utf-8') as fout:
+                                fout.write(' '.join(tokens) + '\n')
 
                         if label == '__pos__':
                             npos += 1
