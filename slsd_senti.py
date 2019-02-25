@@ -215,7 +215,7 @@ def main():
     if args.cuda:
         model.cuda(), lang_dis.cuda(), dom_dis.cuda(), criterion.cuda(), cross_entropy.cuda()
     else:
-        model.cpu(), lang_dis.cpu(), dom_dis.cuda(), criterion.cpu(), cross_entropy.cpu()
+        model.cpu(), lang_dis.cpu(), dom_dis.cpu(), criterion.cpu(), cross_entropy.cpu()
 
     print('Parameters:')
     total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in model.parameters() if x.size())
