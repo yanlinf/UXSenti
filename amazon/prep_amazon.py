@@ -5,7 +5,7 @@ import time
 import os
 
 SRC_DIR = 'cls-acl10-unprocessed/'
-LANGS = ['en', 'fr', 'de', 'ja']
+LANGS = ['en', 'fr', 'de', 'jp']
 DOMAINS = ['books', 'dvd', 'music']
 PART = ['train.review', 'test.review', 'unlabeled.review']
 
@@ -20,10 +20,11 @@ def tokenize(tokenizer, doc):
     return res
 
 
-def corpus_tokenize(tokenizer, corpus):
+def multi_docs_tokenize(tokenizer, docs):
     res = []
     ans = []
-    for sent in tokenizer(corpus).sentences:
+    s = ' eeooss '.join(docs)
+    for sent in tokenizer(s).sentences:
         for tok in sent.tokens:
             t = tok.text.lower()
             t = '<num>' if t.isdigit() else t
@@ -32,6 +33,16 @@ def corpus_tokenize(tokenizer, corpus):
                 ans = []
             else:
                 ans.append(t)
+    return res
+
+
+def corpus_tokenize(tokenizer, corpus, batch_size):
+    res = []
+    n_sents = len(corpus)
+    for i in range(0, n_sents, batch_size):
+        j = min(n_sents, i + batch_size)
+        sents = multi_docs_tokenize(tokenizer, corpus[i:j])
+        res += sents
     return res
 
 
@@ -74,13 +85,13 @@ def main():
                 for t in root:
                     try:
                         dic = {x.tag: x.text for x in t}
-                        unlabeled_text += dic['text'] + ' eeooss '
-                        tokens = tokenize(tokenizer, dic['text'])
+
                         if part != 'unlabeled.review':
+                            # tokens = tokenize(tokenizer, dic['text'])
                             label = '__pos__' if float(dic['rating']) > 3 else '__neg__'
 
-                            with open(trg_file, 'a', encoding='utf-8') as fout:
-                                fout.write(label + ' ' + ' '.join(tokens) + '\n')
+                            # with open(trg_file, 'a', encoding='utf-8') as fout:
+                            #     fout.write(label + ' ' + ' '.join(tokens) + '\n')
 
                             if label == '__pos__':
                                 npos += 1
@@ -88,8 +99,7 @@ def main():
                                 nneg += 1
 
                         if part != 'test.review':
-                            trg_lang_dom_sents.append(' '.join(tokens))
-                            trg_lang_sents.append(' '.join(tokens))
+                            trg_lang_dom_sents.append(dic['text'])
 
                         nitem += 1
 
@@ -107,7 +117,12 @@ def main():
             # lang_unl += sents
             # with open(trg_lang_dom_file, 'w', encoding='utf-8') as fout:
             #     fout.write('\n'.join(sents) + '\n')
-
+            print('tokenizing unlabeled reviews...')
+            t0 = time.time()
+            trg_lang_dom_sents = corpus_tokenize(tokenizer, trg_lang_dom_sents, args.batch_size)
+            duration = (time.time() - t0) * 1000
+            print('finished - ms/item: {:.2f}'.format(duration / len(trg_lang_dom_sents)))
+            trg_lang_sents += trg_lang_dom_sents
             with open(trg_lang_dom_file, 'w', encoding='utf-8') as fout:
                 fout.write('\n'.join(trg_lang_dom_sents) + '\n')
 
