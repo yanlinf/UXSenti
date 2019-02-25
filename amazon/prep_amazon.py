@@ -87,11 +87,11 @@ def main():
                         dic = {x.tag: x.text for x in t}
 
                         if part != 'unlabeled.review':
-                            # tokens = tokenize(tokenizer, dic['text'])
+                            tokens = tokenize(tokenizer, dic['text'])
                             label = '__pos__' if float(dic['rating']) > 3 else '__neg__'
 
-                            # with open(trg_file, 'a', encoding='utf-8') as fout:
-                            #     fout.write(label + ' ' + ' '.join(tokens) + '\n')
+                            with open(trg_file, 'a', encoding='utf-8') as fout:
+                                fout.write(label + ' ' + ' '.join(tokens) + '\n')
 
                             if label == '__pos__':
                                 npos += 1
