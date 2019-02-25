@@ -23,7 +23,7 @@ def main():
     for lang in LANGS:
         vocab = Vocab(path=args.vocab.format(lang))
         dataset[lang]['vocab'] = vocab
-        x = load_lm_corpus(os.path.join(args.data, lang, 'full.txt'), vocab, random_state=args.seed)
+        x = load_lm_corpus(os.path.join(args.data, lang, 'full.review'), vocab, random_state=args.seed)
         dataset[lang]['full'] = x
         size = x.size(0)
         print('[{}] vocab size = {}'.format(lang, len(vocab)))
@@ -32,7 +32,7 @@ def main():
 
         for dom in DOMAINS:
             # load unlabeled data
-            f = os.path.join(args.data, lang, dom, 'unlabeled.review')
+            f = os.path.join(args.data, lang, dom, 'full.review')
             x = load_lm_corpus(f, vocab, random_state=args.seed)
             size = x.size(0)
             dataset[lang][dom]['full'] = x
