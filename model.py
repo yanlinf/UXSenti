@@ -272,11 +272,11 @@ class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
         clf_in_dim = self.emb_sz if self.tie_weights else self.n_hid
 
         if self.pool_layer == 'mean':
-            self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
+            self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_doms)]
         elif self.pool_layer == 'max':
-            self.clfs = [MaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
+            self.clfs = [MaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_doms)]
         elif self.pool_layer == 'meanmax':
-            self.clfs = [MeanMaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_langs)]
+            self.clfs = [MeanMaxPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_doms)]
         self.clfs = nn.ModuleList(self.clfs)
 
     def forward(self, X, lengths, lid, did):
