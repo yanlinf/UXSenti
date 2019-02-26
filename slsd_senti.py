@@ -273,14 +273,12 @@ def main():
                     p = ptrs[lid, did]
                     xs = lm_x[p:p + seq_len].t().contiguous()
                     ys = lm_x[p + 1:p + 1 + seq_len].t().contiguous()
-                    # if args.criterion == 'nll':
-                    #     src_smooth_idx = trg_smooth_idx = None
-                    # else:
-                    #     src_smooth_idx = torch.stack([src_train[src_p + k:src_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
-                    #     src_smooth_idx = src_smooth_idx.view(-1, args.smooth_size)
-                    #     trg_smooth_idx = torch.stack([trg_train[trg_p + k:trg_p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
-                    #     trg_smooth_idx = trg_smooth_idx.view(-1, args.smooth_size)
-                    raw_loss, loss, hid = model.single_loss(xs, ys, lid=lid, did=did, return_h=True)
+                    if args.criterion == 'nll':
+                        smooth_ids = None
+                    else:
+                        smooth_ids = torch.stack([lm_x[p + k:p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
+                        smooth_ids = smooth_ids.view(-1, args.smooth_size)
+                    raw_loss, loss, hid = model.single_loss(xs, ys, lid=lid, did=did, return_h=True, criterion=criterion, smooth_ids=smooth_ids)
                     if args.lambd == 0.:
                         loss.backward()
                     else:

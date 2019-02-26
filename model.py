@@ -117,7 +117,7 @@ class MultiLingualMultiDomainLM(nn.Module):
         for model in self.models:
             model.reset()
 
-    def single_loss(self, X, Y, lid, did, return_h=False):
+    def single_loss(self, X, Y, lid, did, return_h=False, criterion=None, smooth_ids=None):
         """
         X: Tensor of shape (batch_size, seq_len)
         Y: Tensor of shape (batch_size, seq_len)
@@ -130,7 +130,10 @@ class MultiLingualMultiDomainLM(nn.Module):
         bs, bptt = X.size()
         model_id = self.get_model_id(lid, did)
         output, hid, hid_drop = self.models[model_id](X)
-        loss = raw_loss = self.criterion(F.log_softmax(output.view(-1, output.size(-1)), -1), Y.view(-1))
+        if smooth_ids is not None:
+            loss = raw_loss = criterion(F.log_softmax(output.view(-1, output.size(-1)), -1), Y.view(-1), smooth_ids)
+        else:
+            loss = raw_loss = self.criterion(F.log_softmax(output.view(-1, output.size(-1)), -1), Y.view(-1))
 
         if self.alpha > 0 or self.beta > 0:
             loss = loss + sum(self.alpha * h.pow(2).mean() for h in hid_drop[-1:])
