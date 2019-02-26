@@ -55,7 +55,7 @@ def main():
     parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'ja'], nargs='+', default=['fr', 'de', 'ja'], help='target_language')
     parser.add_argument('--sup_dom', choices=['books', 'dvd', 'music'], default='books', help='domain to perform supervised learning')
     parser.add_argument('--dom', choices=['books', 'dvd', 'music'], nargs='+', default=['books', 'dvd', 'music'], help='domains')
-    parser.add_argument('--data', default='pickle/amazon.10000.dataset', help='traning and testing data')
+    parser.add_argument('--data', default='pickle/amazon.15000.256.dataset', help='traning and testing data')
     parser.add_argument('--resume', help='path of model to resume')
     parser.add_argument('--val_size', type=int, default=600, help='validation set size')
 
