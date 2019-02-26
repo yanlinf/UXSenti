@@ -68,7 +68,7 @@ def main():
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--nshare', type=int, default=1, help='number of rnn layers to share')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
-    parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='max', help='pooling layer')
+    parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='mean', help='pooling layer')
     parser.add_argument('--lambd', type=float, default=1, help='coefficient of the adversarial loss')
     parser.add_argument('--gamma', type=float, default=0.01, help='coefficient of the classification loss')
 
