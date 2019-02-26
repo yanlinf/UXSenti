@@ -334,27 +334,28 @@ def main():
 
             if (epoch + 1) % args.val_interval == 0:
                 model.eval()
-                train_acc = evaluate(model, train_ds, src_id, dom_id, args.test_batch_size)
-                val_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, val_ds)]
-                test_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, test_ds)]
-                bdi_accs = [compute_nn_accuracy(model.encoder_weight(src_id).cpu().numpy(),
-                                                model.encoder_weight(tid).cpu().numpy(),
-                                                lexicon, 10000, lexicon_size=lexsz) for lexicon, lexsz, tid in lexicons]
-                print_line()
-                print(('| epoch {:4d} | train {:.4f} |' +
-                       ' val' + ' {} {:.4f}' * n_trg + ' |' +
-                       ' test' + ' {} {:.4f}' * n_trg + ' |' +
-                       ' bdi' + ' {} {:.4f}' * n_trg + ' |').format(epoch, train_acc,
-                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, val_accs)], []),
-                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
-                                                                    *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
-                print_line()
-                for tlang, val_acc in zip(args.trg, val_accs):
-                    if val_acc > best_accs[tlang]:
-                        save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
-                        print('saving {} model to {}'.format(tlang, save_path))
-                        model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, save_path)
-                        best_accs[tlang] = val_acc
+                with torch.no_grad():
+                    train_acc = evaluate(model, train_ds, src_id, dom_id, args.test_batch_size)
+                    val_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, val_ds)]
+                    test_accs = [evaluate(model, ds, tid, dom_id, args.test_batch_size) for tid, ds in zip(trg_ids, test_ds)]
+                    bdi_accs = [compute_nn_accuracy(model.encoder_weight(src_id).cpu().numpy(),
+                                                    model.encoder_weight(tid).cpu().numpy(),
+                                                    lexicon, 10000, lexicon_size=lexsz) for lexicon, lexsz, tid in lexicons]
+                    print_line()
+                    print(('| epoch {:4d} | train {:.4f} |' +
+                           ' val' + ' {} {:.4f}' * n_trg + ' |' +
+                           ' test' + ' {} {:.4f}' * n_trg + ' |' +
+                           ' bdi' + ' {} {:.4f}' * n_trg + ' |').format(epoch, train_acc,
+                                                                        *sum([[tlang, acc] for tlang, acc in zip(args.trg, val_accs)], []),
+                                                                        *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
+                                                                        *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
+                    print_line()
+                    for tlang, val_acc in zip(args.trg, val_accs):
+                        if val_acc > best_accs[tlang]:
+                            save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
+                            print('saving {} model to {}'.format(tlang, save_path))
+                            model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, save_path)
+                            best_accs[tlang] = val_acc
 
                 model.train()
                 start_time = time.time()
@@ -367,12 +368,13 @@ def main():
     # Testing
     ###############################################################################
 
-    test_accs = []
-    for tid, tlang, ds in zip(trg_ids, args.trg, test_ds):
-        save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
-        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(save_path)   # Load the best saved model.
-        model.eval()
-        test_accs.append(evaluate(model, ds, tid, dom_id, args.test_batch_size))
+    with torch.no_grad():
+        test_accs = []
+        for tid, tlang, ds in zip(trg_ids, args.trg, test_ds):
+            save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
+            model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(save_path)   # Load the best saved model.
+            model.eval()
+            test_accs.append(evaluate(model, ds, tid, dom_id, args.test_batch_size))
     print_line()
     print(('|' + ' {}_test {:.4f} |' * n_trg).format(*sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], [])))
     print_line()
