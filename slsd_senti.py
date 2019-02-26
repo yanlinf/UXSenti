@@ -61,7 +61,7 @@ def main():
 
     # architecture
     parser.add_argument('--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
-    parser.add_argument('--emsize', type=int, default=400, help='size of word embeddings')
+    parser.add_argument('--emsize', type=int, default=300, help='size of word embeddings')
     parser.add_argument('--nhid', type=int, default=1150, help='number of hidden units per layer')
     parser.add_argument('--dis_nhid', type=int, default=1024, help='number of hidden units per layer')
     parser.add_argument('--nlayers', type=int, default=2, help='number of layers')
@@ -76,7 +76,7 @@ def main():
     parser.add_argument('--clf_dropout', type=float, default=0.6, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--dropout', type=float, default=0.4, help='dropout applied to layers (0 = no dropout)')
     parser.add_argument('--dropouth', type=float, default=0.3, help='dropout for rnn layers (0 = no dropout)')
-    parser.add_argument('--dropouti', type=float, default=0.65, help='dropout for input embedding layers (0 = no dropout)')
+    parser.add_argument('--dropouti', type=float, default=0.4, help='dropout for input embedding layers (0 = no dropout)')
     parser.add_argument('--dropoute', type=float, default=0.1, help='dropout to remove words from embedding layer (0 = no dropout)')
     parser.add_argument('--wdrop', type=float, default=0.5, help='amount of weight dropout to apply to the RNN hidden to hidden matrix')
     parser.add_argument('--alpha', type=float, default=2, help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
@@ -89,7 +89,7 @@ def main():
     parser.add_argument('--smooth_size', type=int, default=3, help='window size for wsnll')
 
     # optimization
-    parser.add_argument('--epochs', type=int, default=60000, help='upper epoch limit')
+    parser.add_argument('--epochs', type=int, default=40000, help='upper epoch limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
@@ -102,7 +102,7 @@ def main():
     parser.add_argument('--dis_lr', type=float, default=0.003, help='initial learning rate for the discriminators')
     parser.add_argument('--clf_lr', type=float, default=0.003, help='initial learning rate for the classifier')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
-    parser.add_argument('--dis_clip', type=float, default=0.01, help='gradient clipping')
+    parser.add_argument('--dis_clip', type=float, default=-1, help='gradient clipping')
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
 
     # device / logging settings
@@ -313,8 +313,9 @@ def main():
             (args.gamma * clf_loss).backward()
 
             nn.utils.clip_grad_norm_(model.parameters(), args.lm_clip)
-            for x in list(lang_dis.parameters()) + list(dom_dis.parameters()):
-                x.data.clamp_(-args.dis_clip, args.dis_clip)
+            if args.dis_clip > 0:
+                for x in list(lang_dis.parameters()) + list(dom_dis.parameters()):
+                    x.data.clamp_(-args.dis_clip, args.dis_clip)
             lm_opt.step()
             lm_opt.param_groups[0]['lr'] = lr0
 
