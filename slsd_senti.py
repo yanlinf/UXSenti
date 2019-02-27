@@ -107,7 +107,7 @@ def main():
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
 
     # device / logging settings
-    parser.add_argument('--seed', type=int, default=1111, help='random seed')
+    parser.add_argument('--seed', type=int, default=np.random.randint(0, 1000), help='random seed')
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
     parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
     parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
@@ -186,10 +186,11 @@ def main():
                                                   n_share=args.nshare, tie_weights=args.tied,
                                                   output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                   embed_p=args.dropoute, weight_p=args.wdrop, alpha=args.alpha, beta=args.beta)
-
-        lang_dis = nn.ModuleList([Discriminator(args.emsize if args.tied else args.nhid, args.dis_nhid,
+        lang_dis_in_dim = args.emsize if args.tied else args.nhid
+        lang_dis = nn.ModuleList([Discriminator(lang_dis_in_dim, args.dis_nhid,
                                                 len(args.lang), nlayers=args.dis_nlayers, dropout=0.1) for _ in range(len(args.dom))])
-        dom_dis = Discriminator(args.nhid * 2 if args.pool == 'meanmax' else args.nhid, args.dis_nhid, len(args.dom), nlayers=args.dis_nlayers, dropout=0.1)
+        dom_dis_in_dim = lang_dis_in_dim if args.nshare == args.nlayers else (args.nhid * 2 if args.pool == 'meanmax' else args.nhid)
+        dom_dis = Discriminator(dom_dis_in_dim, args.dis_nhid, len(args.dom), nlayers=args.dis_nlayers, dropout=0.1)
         pool_layer = get_pooling_layer(args.pool)
 
         param_splits = [{'params': model.models.parameters(),  'lr': args.lm_lr},
@@ -202,8 +203,6 @@ def main():
             lm_opt = torch.optim.Adam(param_splits, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
             dis_opt = torch.optim.Adam(list(lang_dis.parameters()) + list(dom_dis.parameters()), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
-    grad_rev_layer_lang = GradReverse(1)
-    grad_rev_layer_dom = GradReverse(1)
     criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -262,6 +261,7 @@ def main():
 
             batch_loss = 0
             lm_opt.zero_grad()
+            dis_opt.zero_grad()
 
             dom_dis_x = []
             lang_dis_x = [[] for _ in range(len(args.dom))]
@@ -291,11 +291,11 @@ def main():
 
             if args.lambd_dom != 0 or args.lambd_lang != 0:
                 for did in range(len(args.dom)):
-                    xtmp = grad_rev_layer_lang(torch.cat(lang_dis_x[did], 0))
+                    xtmp = GradReverse.apply(torch.cat(lang_dis_x[did], 0))
                     lang_dis_loss = cross_entropy(lang_dis[did](xtmp), lang_dis_y)
                     batch_loss = batch_loss + args.lambd_lang * lang_dis_loss
                     total_lang_dis_loss[did] += lang_dis_loss.item()
-                dom_dis_x = grad_rev_layer_dom(torch.cat(dom_dis_x, 0))
+                dom_dis_x = GradReverse.apply(torch.cat(dom_dis_x, 0))
                 dom_dis_loss = cross_entropy(dom_dis(dom_dis_x), dom_dis_y)
                 batch_loss = batch_loss + args.lambd_dom * dom_dis_loss
                 batch_loss.backward()
@@ -315,6 +315,7 @@ def main():
             if args.dis_clip > 0:
                 for x in list(lang_dis.parameters()) + list(dom_dis.parameters()):
                     x.data.clamp_(-args.dis_clip, args.dis_clip)
+            dis_opt.step()
             lm_opt.step()
             lm_opt.param_groups[0]['lr'] = lr0
 
