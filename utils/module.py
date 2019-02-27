@@ -5,15 +5,13 @@ import torch.nn.functional as F
 
 class GradReverse(torch.autograd.Function):
 
-    def __init__(self, lambd):
-        super(GradReverse, self).__init__()
-        self.lambd = lambd
-
-    def forward(self, x):
+    @staticmethod
+    def forward(ctx, x):
         return x.view_as(x)
 
-    def backward(self, grad_output):
-        return (grad_output * -self.lambd)
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg()
 
 
 class MyNLLLoss(nn.Module):
