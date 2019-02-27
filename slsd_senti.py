@@ -69,7 +69,8 @@ def main():
     parser.add_argument('--nshare', type=int, default=1, help='number of rnn layers to share')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
     parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='mean', help='pooling layer')
-    parser.add_argument('--lambd', type=float, default=1, help='coefficient of the adversarial loss')
+    parser.add_argument('--lambd_lang', type=float, default=1, help='coefficient of the adversarial loss')
+    parser.add_argument('--lambd_dom', type=float, default=1, help='coefficient of the adversarial loss')
     parser.add_argument('--gamma', type=float, default=0.01, help='coefficient of the classification loss')
 
     # regularization
@@ -201,8 +202,8 @@ def main():
             lm_opt = torch.optim.Adam(param_splits, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
             dis_opt = torch.optim.Adam(list(lang_dis.parameters()) + list(dom_dis.parameters()), lr=args.dis_lr, weight_decay=args.wdecay, betas=(args.adam_beta, 0.999))
 
-    grad_rev_layer_lang = GradReverse(args.lambd)
-    grad_rev_layer_dom = GradReverse(args.lambd)
+    grad_rev_layer_lang = GradReverse(1)
+    grad_rev_layer_dom = GradReverse(1)
     criterion = nn.NLLLoss() if args.criterion == 'nll' else WindowSmoothedNLLLoss(args.smooth_eps)
     cross_entropy = nn.CrossEntropyLoss()
 
@@ -279,7 +280,7 @@ def main():
                         smooth_ids = torch.stack([lm_x[p + k:p + k + seq_len].t() for k in range(1, 1 + args.smooth_size)], -1)
                         smooth_ids = smooth_ids.view(-1, args.smooth_size)
                     raw_loss, loss, hid = model.single_loss(xs, ys, lid=lid, did=did, return_h=True, criterion=criterion, smooth_ids=smooth_ids)
-                    if args.lambd == 0.:
+                    if args.lambd_dom == 0.and args.lambd_lang == 0:
                         loss.backward()
                     else:
                         batch_loss = batch_loss + loss
@@ -288,15 +289,15 @@ def main():
                     total_loss[lid, did] += raw_loss.item()
                     ptrs[lid, did] += seq_len
 
-            if args.lambd != 0:
+            if args.lambd_dom != 0 or args.lambd_lang != 0:
                 for did in range(len(args.dom)):
                     xtmp = grad_rev_layer_lang(torch.cat(lang_dis_x[did], 0))
                     lang_dis_loss = cross_entropy(lang_dis[did](xtmp), lang_dis_y)
-                    batch_loss = batch_loss + lang_dis_loss
+                    batch_loss = batch_loss + args.lambd_lang * lang_dis_loss
                     total_lang_dis_loss[did] += lang_dis_loss.item()
                 dom_dis_x = grad_rev_layer_dom(torch.cat(dom_dis_x, 0))
                 dom_dis_loss = cross_entropy(dom_dis(dom_dis_x), dom_dis_y)
-                batch_loss = batch_loss + dom_dis_loss
+                batch_loss = batch_loss + args.lambd_dom * dom_dis_loss
                 batch_loss.backward()
                 total_dom_dis_loss += dom_dis_loss.item()
 
