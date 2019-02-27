@@ -55,10 +55,10 @@ def main():
     parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'ja'], nargs='+', default=['fr', 'de', 'ja'], help='target_language')
     parser.add_argument('--sup_dom', choices=['books', 'dvd', 'music'], default='books', help='domain to perform supervised learning')
     parser.add_argument('--dom', choices=['books', 'dvd', 'music'], nargs='+', default=['books', 'dvd', 'music'], help='domains')
-    parser.add_argument('--data', default='pickle/amazon.10000.dataset', help='traning and testing data')
+    parser.add_argument('--data', default='pickle/amazon.15000.256.dataset', help='traning and testing data')
     parser.add_argument('--resume', help='path of model to resume')
     parser.add_argument('--val_size', type=int, default=600, help='validation set size')
-    parser.add_argument('--embedding', default='data/wiki.{}.vec', help='multi-lingual word embeddings')
+    parser.add_argument('--embedding', default='data/vectors-{}.txt', help='multi-lingual word embeddings')
 
     # architecture
     parser.add_argument('--model', type=str, default='LSTM', help='type of recurrent net (LSTM, QRNN, GRU)')
@@ -69,7 +69,7 @@ def main():
     parser.add_argument('--dis_nlayers', type=int, default=2, help='number of layers')
     parser.add_argument('--nshare', type=int, default=1, help='number of rnn layers to share')
     parser.add_argument('--tied', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
-    parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='max', help='pooling layer')
+    parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='mean', help='pooling layer')
     parser.add_argument('--lambd', type=float, default=1, help='coefficient of the adversarial loss')
     parser.add_argument('--gamma', type=float, default=0.01, help='coefficient of the classification loss')
 
@@ -90,7 +90,7 @@ def main():
     parser.add_argument('--smooth_size', type=int, default=3, help='window size for wsnll')
 
     # optimization
-    parser.add_argument('--epochs', type=int, default=60000, help='upper epoch limit')
+    parser.add_argument('--epochs', type=int, default=40000, help='upper epoch limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
@@ -109,8 +109,8 @@ def main():
     # device / logging settings
     parser.add_argument('--seed', type=int, default=1111, help='random seed')
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
-    parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
-    parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
+    parser.add_argument('--log_interval', type=int, default=50, metavar='N', help='report interval')
+    parser.add_argument('--val_interval', type=int, default=300, metavar='N', help='validation interval')
     parser.add_argument('--debug', action='store_true', help='debug mode')
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
