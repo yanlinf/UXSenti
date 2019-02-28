@@ -4,6 +4,7 @@ import time
 import math
 import hashlib
 import numpy as np
+import json
 import pickle
 import torch
 import torch.nn as nn
@@ -46,6 +47,16 @@ def model_load(path):
     with open(path, 'rb') as f:
         model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = torch.load(f)
     return model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt
+
+
+def load_config(model_path, args):
+    with open(os.path.join(os.path.dirname(model_path), 'config.json'), 'r') as fin:
+        dic = json.load(fin)
+
+    for k in dict(vars(args)):
+        if k != 'resume':
+            setattr(args, k, dic[k])
+    return args
 
 
 def main():
@@ -118,6 +129,9 @@ def main():
     if args.debug:
         parser.set_defaults(log_interval=20, val_interval=40)
     args = parser.parse_args()
+
+    if args.resume:
+        args = load_config(args.resume, args)
 
     # set random seed
     np.random.seed(args.seed)
