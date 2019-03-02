@@ -305,7 +305,7 @@ def main():
                     ptrs[lid, did] += seq_len
 
             if args.lambd_dom != 0 or args.lambd_lang != 0:
-                for did in range(len(args.dom)):
+                for did in [dom_id]:
                     xtmp = GradReverse.apply(torch.cat(lang_dis_x[did], 0))
                     lang_dis_loss = cross_entropy(lang_dis[did](xtmp), lang_dis_y)
                     batch_loss = batch_loss + args.lambd_lang * lang_dis_loss
