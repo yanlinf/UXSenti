@@ -99,7 +99,7 @@ def main():
     parser.add_argument('--optimizer', type=str,  default='adam', help='optimizer to use (sgd, adam)')
     parser.add_argument('--adam_beta', type=float, default=0.7, help='beta of adam')
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
-    parser.add_argument('-lr', '--lr', type=float, default=0.003, help='initial learning rate for the language model')
+    parser.add_argument('-lr', '--lr', type=float, default=0.001, help='initial learning rate for the language model')
     parser.add_argument('--lm_clip', type=float, default=0.25, help='gradient clipping')
     parser.add_argument('--dis_clip', type=float, default=0.01, help='gradient clipping')
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
