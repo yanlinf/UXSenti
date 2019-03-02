@@ -20,7 +20,7 @@ from utils.bdi import *
 from utils.module import *
 from model import MultiLingualMultiDomainClassifier, Discriminator, get_pooling_layer
 
-LINE_WIDTH = 138
+LINE_WIDTH = 140
 
 
 def print_line():
@@ -340,7 +340,7 @@ def main():
                 total_lang_dis_loss /= args.log_interval
                 total_dom_dis_loss /= args.log_interval
                 elapsed = time.time() - start_time
-                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:5.2f} | avg_ppl {:7.2f} | clf {:7.4f} | avg_lang {:7.4f} | dom {:7.4f} |'.format(
+                print('| epoch {:4d} | lm_lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:7.4f} | avg_ppl {:7.2f} | clf {:7.4f} | avg_lang {:7.4f} | dom {:7.4f} |'.format(
                     epoch, lm_opt.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                     total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss, total_lang_dis_loss.mean(), total_dom_dis_loss))
                 total_loss[:, :] = 0
