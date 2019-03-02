@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--pool', choices=['mean', 'max', 'meanmax'], default='mean', help='pooling layer')
     parser.add_argument('--lambd_lang', type=float, default=1, help='coefficient of the adversarial loss')
     parser.add_argument('--lambd_dom', type=float, default=1, help='coefficient of the adversarial loss')
+    parser.add_argument('--lambd_lm', type=float, default=1, help='coefficient of the language modeling')
     parser.add_argument('--gamma', type=float, default=0.01, help='coefficient of the classification loss')
 
     # regularization
@@ -295,9 +296,9 @@ def main():
                         smooth_ids = smooth_ids.view(-1, args.smooth_size)
                     raw_loss, loss, hid = model.single_loss(xs, ys, lid=lid, did=did, return_h=True, criterion=criterion, smooth_ids=smooth_ids)
                     if args.lambd_dom == 0.and args.lambd_lang == 0:
-                        loss.backward()
+                        (args.lambd_lm * loss).backward()
                     else:
-                        batch_loss = batch_loss + loss
+                        batch_loss = batch_loss + loss * args.lambd_lm
                         lang_dis_x[did].append(pool_layer(hid[-1]))
                         dom_dis_x.append(pool_layer(hid[args.nshare - 1]))
                     total_loss[lid, did] += raw_loss.item()
