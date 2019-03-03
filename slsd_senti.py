@@ -201,7 +201,7 @@ def main():
                                                   n_share=args.nshare, tie_weights=args.tied,
                                                   output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                   embed_p=args.dropoute, weight_p=args.wdrop, alpha=args.alpha, beta=args.beta)
-        lang_dis_in_dim = args.emsize if args.tied else args.nhid
+        lang_dis_in_dim = args.emsize
         lang_dis = nn.ModuleList([Discriminator(lang_dis_in_dim, args.dis_nhid,
                                                 len(args.lang), nlayers=args.dis_nlayers, dropout=0.1) for _ in range(len(args.dom))])
         dom_dis_in_dim = lang_dis_in_dim if args.nshare == args.nlayers else (args.nhid * 2 if args.pool == 'meanmax' else args.nhid)
