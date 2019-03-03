@@ -273,7 +273,7 @@ class MultiLingualMultiDomainClassifier(MultiLingualMultiDomainLM):
         self.n_classes = n_classes
         self.pool_layer = pool_layer
 
-        clf_in_dim = self.emb_sz if self.tie_weights else self.n_hid
+        clf_in_dim = self.emb_sz
 
         if self.pool_layer == 'mean':
             self.clfs = [MeanPoolClassifier(clf_in_dim, n_classes, clf_dropout) for _ in range(self.n_doms)]
