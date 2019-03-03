@@ -105,7 +105,7 @@ def main():
     parser.add_argument('--when', nargs="+", type=int, default=[-1], help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
 
     # device / logging settings
-    parser.add_argument('--seed', type=int, default=1111, help='random seed')
+    parser.add_argument('--seed', type=int, default=np.random.randint(0, 1000), help='random seed')
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
     parser.add_argument('--log_interval', type=int, default=50, metavar='N', help='report interval')
     parser.add_argument('--val_interval', type=int, default=300, metavar='N', help='validation interval')
