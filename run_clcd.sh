@@ -1,0 +1,12 @@
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-dvd --trg de-books --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-music --trg de-books --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-books --trg de-dvd --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-music --trg de-dvd --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-books --trg de-music --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-dvd --trg de-music --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-dvd --trg fr-books --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-music --trg fr-books --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-books --trg fr-dvd --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-music --trg fr-dvd --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-books --trg fr-music --export export/cross0/
+python -u cross_lingual_cross_domain.py --epochs 30000 --lm_lr 0.003 --clf_lr 0.003 --dis_lr 0.003 --src en-dvd --trg fr-music --export export/cross0/
