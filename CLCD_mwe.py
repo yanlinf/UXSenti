@@ -326,14 +326,6 @@ def main():
     # Testing
     ###############################################################################
 
-    with torch.no_grad():
-        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(model_path)   # Load the best saved model.
-        model.eval()
-        test_acc = evaluate(model, test_ds, 1, 0, args.test_batch_size)
-    print_line()
-    print('| [{}|{}]_test {:.4f} |'.format(args.src, args.trg, test_acc))
-    print_line()
-
     test_accs = []
     for tid, tpair, ds in zip(trg_lang_ids, args.trg, test_ds):
         save_path = model_path.replace('.pt', '_[{}].pt'.format(tpair))
