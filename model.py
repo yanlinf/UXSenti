@@ -88,7 +88,8 @@ class MultiLingualMultiDomainLM(nn.Module):
                 if tie_weights:
                     list(lm.children())[1].decoder.weight = encoders[lid].emb.weight
                 else:
-                    list(lm.children())[1].decoder.weight = list(models[lid].children())[1].decoder.weight
+                    pass
+                    # list(lm.children())[1].decoder.weight = list(models[lid].children())[1].decoder.weight
 
                 models.append(lm)
 
