@@ -102,7 +102,7 @@ def main():
     parser.add_argument('--smooth_size', type=int, default=3, help='window size for wsnll')
 
     # optimization
-    parser.add_argument('--epochs', type=int, default=80000, help='upper epoch limit')
+    parser.add_argument('--epochs', type=int, default=50000, help='upper epoch limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
