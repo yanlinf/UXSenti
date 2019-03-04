@@ -310,11 +310,14 @@ def main():
                     lang_dis_loss = cross_entropy(lang_dis[did](xtmp), lang_dis_y)
                     batch_loss = batch_loss + args.lambd_lang * lang_dis_loss
                     total_lang_dis_loss[did] += lang_dis_loss.item()
-                dom_dis_x = GradReverse.apply(torch.cat(dom_dis_x, 0))
-                dom_dis_loss = cross_entropy(dom_dis(dom_dis_x), dom_dis_y)
-                batch_loss = batch_loss + args.lambd_dom * dom_dis_loss
+
+                if args.lambd_dom != 0:
+                    dom_dis_x = GradReverse.apply(torch.cat(dom_dis_x, 0))
+                    dom_dis_loss = cross_entropy(dom_dis(dom_dis_x), dom_dis_y)
+                    batch_loss = batch_loss + args.lambd_dom * dom_dis_loss
+                    total_dom_dis_loss += dom_dis_loss.item()
+
                 batch_loss.backward()
-                total_dom_dis_loss += dom_dis_loss.item()
 
             # classification loss
             try:
