@@ -87,6 +87,8 @@ class MultiLingualMultiDomainLM(nn.Module):
                 # tie decoder weight to language embeddings (optional)
                 if tie_weights:
                     list(lm.children())[1].decoder.weight = encoders[lid].emb.weight
+                else:
+                    list(lm.children())[1].decoder.weight = list(models[lid].children())[1].decoder.weight
 
                 models.append(lm)
 
