@@ -371,7 +371,7 @@ def main():
         model.eval()
         test_acc = evaluate(model, test_ds, 1, 0, args.test_batch_size)
     print_line()
-    print('| [{}]_test {:.4f} |'.format(args.trg, test_acc))
+    print('| [{}|{}]_test {:.4f} |'.format(args.src, args.trg, test_acc))
     print_line()
 
 if __name__ == '__main__':
