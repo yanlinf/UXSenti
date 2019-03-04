@@ -25,6 +25,7 @@ LINE_WIDTH = 140
 LANGS = ['en', 'fr', 'de', 'ja']
 DOMS = ['books', 'dvd', 'music']
 LANG_DOM_PARIS = [lang + '-' + dom for lang in LANGS for dom in DOMS]
+DEFAULT_TRG_PAIRS = [lang + '-' + dom for lang in ['fr', 'de'] for dom in ['dvd', 'music']]
 
 
 def print_line():
@@ -66,7 +67,7 @@ def load_config(model_path, args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-src', '--src', choices=LANG_DOM_PARIS, default='en-dvd', help='source pair')
-    parser.add_argument('-trg', '--trg', choices=LANG_DOM_PARIS, default='de-books', help='target pair')
+    parser.add_argument('-trg', '--trg', choices=LANG_DOM_PARIS, nargs='+', default=DEFAULT_TRG_PAIRS, help='target pair')
     parser.add_argument('--data', default='pickle/amazon.15000.256.dataset', help='traning and testing data')
     parser.add_argument('--resume', help='path of model to resume')
     parser.add_argument('--val_size', type=int, default=600, help='validation set size')
@@ -156,39 +157,40 @@ def main():
     # Load data
     ###############################################################################
 
+    langs = list(set([t.split('-')[0] for t in [args.src] + args.trg]))
+    lang2id = {l: i for i, l in enumerate(langs)}
+
     src_lang, src_dom = args.src.split('-')
-    trg_lang, trg_dom = args.trg.split('-')
-    lang_dom_pairs = [[src_lang, src_dom], [src_lang, trg_dom], [trg_lang, trg_dom]]
-    id_pairs = [[0, 0], [0, 1], [1, 1]]
+    trg_pairs = [t.split('-') for t in args.trg]
+    trg_lang_ids = [lang2id[l] for l, _ in trg_pairs]
 
     with open(args.data, 'rb') as fin:
         dataset = pickle.load(fin)
 
-    src_vocab = dataset[src_lang]['vocab']
-    trg_vocab = dataset[trg_lang]['vocab']
+    vocabs = [dataset[l]['vocab'] for l in langs]
 
     train_x, train_y, train_l = to_device(dataset[src_lang][src_dom]['train'], args.cuda)
-    val_x, val_y, val_l = sample(to_device(dataset[trg_lang][trg_dom]['train'], args.cuda), args.val_size)
-    test_x, test_y, test_l = to_device(dataset[trg_lang][trg_dom]['test'], args.cuda)
+    val_ds = [sample(to_device(dataset[tl][td]['train'], args.cuda), args.val_size) for tl, td in trg_pairs]
+    test_ds = [to_device(dataset[tl][td]['test'], args.cuda) for tl, td in trg_pairs]
 
     senti_train = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.clf_batch_size)
     train_iter = iter(senti_train)
     train_ds = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.test_batch_size)
-    val_ds = DataLoader(SentiDataset(val_x, val_y, val_l), batch_size=args.test_batch_size)
-    test_ds = DataLoader(SentiDataset(test_x, test_y, test_l), batch_size=args.test_batch_size)
-    lexicon, lexsz = load_lexicon('data/muse/{}-{}.0-5000.txt'.format(src_lang, trg_lang), src_vocab, trg_vocab)
+    val_ds = [DataLoader(SentiDataset(*data), batch_size=args.test_batch_size) for data in val_ds]
+    test_ds = [DataLoader(SentiDataset(*data), batch_size=args.test_batch_size) for data in test_ds]
 
     oov_rates = []
-    src_emb, count = load_vectors_with_vocab(args.embedding.format(src_lang), src_vocab, 50000 if args.debug else -1)
-    oov_rates.append(1 - count / len(src_vocab))
-    trg_emb, count = load_vectors_with_vocab(args.embedding.format(trg_lang), trg_vocab, 50000 if args.debug else -1)
-    oov_rates.append(1 - count / len(trg_vocab))
+    mwe = []
+    for v, lang in zip(vocabs, langs):
+        x, count = load_vectors_with_vocab(args.embedding.format(lang), v, 50000 if args.debug else -1)
+        mwe.append(x)
+        oov_rates.append(1 - count / len(v))
 
     print('Statistics:')
-    print('\t{} vocab size: {}'.format(src_lang, len(src_vocab)))
-    print('\t{} vocab size: {}'.format(trg_lang, len(trg_vocab)))
-    print('\t{} oov rate: {:.4f}'.format(src_lang, oov_rates[0]))
-    print('\t{} oov rate: {:.4f}'.format(trg_lang, oov_rates[1]))
+    for lang, v in zip(langs, vocabs):
+        print('\t{} vocab size: {}'.format(lang, len(v)))
+    for lang, oov_rate in zip(langs, oov_rates):
+        print('\t{} oov rate:   {:.4f}'.format(lang, oov_rate))
     print()
 
     ###############################################################################
@@ -200,16 +202,15 @@ def main():
 
     else:
         model = MultiLingualMultiDomainClassifier(n_classes=2, pool_layer=args.pool, clf_dropout=args.clf_dropout,
-                                                  n_langs=2, n_doms=2, n_tok=[len(src_vocab), len(trg_vocab)],
+                                                  n_langs=len(langs), n_doms=1, n_tok=[len(v) for v in vocabs],
                                                   emb_sz=args.emsize, n_hid=args.nhid, n_layers=args.nlayers,
                                                   n_share=args.nshare, tie_weights=args.tied,
                                                   output_p=args.dropout, hidden_p=args.dropouth, input_p=args.dropouti,
                                                   embed_p=args.dropoute, weight_p=args.wdrop, alpha=args.alpha, beta=args.beta)
 
-        model.encoder_weight(0).copy_(torch.from_numpy(src_emb))
-        freeze_net(model.encoders[0])
-        model.encoder_weight(1).copy_(torch.from_numpy(trg_emb))
-        freeze_net(model.encoders[1])
+        for lid in range(len(langs)):
+            model.encoder_weight(lid).copy_(torch.from_numpy(mwe[lid]))
+            freeze_net(model.encoders[lid])
 
         lang_dis_in_dim = args.emsize if args.tied else args.nhid
         lang_dis = Discriminator(lang_dis_in_dim, args.dis_nhid, 2, nlayers=args.dis_nlayers, dropout=0.1)
@@ -249,7 +250,7 @@ def main():
     ###############################################################################
 
     # Loop over epochs.
-    best_acc = 0.
+    best_acc = np.zeros(len(args.trg))
     print('Traning:')
     print_line()
     # At any point you can hit Ctrl + C to break out of training early.
@@ -273,7 +274,7 @@ def main():
             except StopIteration:
                 train_iter = iter(senti_train)
                 xs, ys, ls = next(train_iter)
-            clf_loss = cross_entropy(model(xs, ls, 0, 0), ys)
+            clf_loss = cross_entropy(model(xs, ls, lang2id[src_lang], 0), ys)
             clf_loss.backward()
             total_clf_loss += clf_loss.item()
 
@@ -297,19 +298,22 @@ def main():
             if (epoch + 1) % args.val_interval == 0:
                 model.eval()
                 with torch.no_grad():
-                    train_acc = evaluate(model, train_ds, 0, 0, args.test_batch_size)
-                    val_acc = evaluate(model, val_ds, 1, 0, args.test_batch_size)
-                    test_acc = evaluate(model, test_ds, 1, 0, args.test_batch_size)
-                    bdi_acc = compute_nn_accuracy(model.encoder_weight(0).cpu().numpy(),
-                                                  model.encoder_weight(1).cpu().numpy(),
-                                                  lexicon, 10000, lexicon_size=lexsz)
+                    train_acc = evaluate(model, train_ds, lang2id[src_lang], 0, args.test_batch_size)
+                    val_acc = [evaluate(model, ds, tid, 0, args.test_batch_size) for tid, ds in zip(trg_lang_ids, val_ds)]
+                    test_acc = [evaluate(model, ds, tid, 0, args.test_batch_size) for tid, ds in zip(trg_lang_ids, test_ds)]
                     print_line()
-                    print('| epoch {:4d} | train {:.4f} |  val {:.4f} | test {:.4f} | bdi {:.4f} |'.format(epoch, train_acc, val_acc, test_acc, bdi_acc))
+                    print(('| epoch {:4d} | train {:.4f} |' +
+                           ' val' + ' {} {:.4f}' * len(args.trg) + ' |' +
+                           ' test' + ' {} {:.4f}' * len(args.trg) + ' |').format(epoch, train_acc,
+                                                                                 *sum([[tpair, acc] for tpair, acc in zip(args.trg, val_acc)], []),
+                                                                                 *sum([[tpair, acc] for tpair, acc in zip(args.trg, test_acc)], [])))
                     print_line()
-                    if val_acc > best_acc:
-                        print('saving model to {}'.format(model_path))
-                        model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, model_path)
-                        best_acc = val_acc
+                    for j, (acc, tpair) in enumerate(zip(val_acc, args.trg)):
+                        if acc > best_acc[j]:
+                            save_path = model_path.replace('.pt', '_[{}].pt'.format(tpair))
+                            print('saving {} model to {}'.format(tpair, save_path))
+                            model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, save_path)
+                            best_acc[j] = acc
 
                 model.train()
                 start_time = time.time()
@@ -328,6 +332,16 @@ def main():
         test_acc = evaluate(model, test_ds, 1, 0, args.test_batch_size)
     print_line()
     print('| [{}|{}]_test {:.4f} |'.format(args.src, args.trg, test_acc))
+    print_line()
+
+    test_accs = []
+    for tid, tpair, ds in zip(trg_lang_ids, args.trg, test_ds):
+        save_path = model_path.replace('.pt', '_[{}].pt'.format(tpair))
+        model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt = model_load(save_path)   # Load the best saved model.
+        model.eval()
+        test_accs.append(evaluate(model, ds, tid, 0, args.test_batch_size))
+    print_line()
+    print(('| src {} |' + ' [{}]_test {:.4f} |' * len(args.trg)).format(args.src, *sum([[tpair, acc] for tpair, acc in zip(args.trg, test_accs)], [])))
     print_line()
 
 if __name__ == '__main__':
