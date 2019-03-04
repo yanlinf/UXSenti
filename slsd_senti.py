@@ -370,6 +370,8 @@ def main():
                                                                         *sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], []),
                                                                         *sum([[tlang, acc] for tlang, acc in zip(args.trg, bdi_accs)], [])))
                     print_line()
+                    print('saving {} model to {}'.format(tlang, model_path.replace('.pt', '_final.pt')))
+                    model_save(model, lang_dis, dom_dis, pool_layer, lm_opt, dis_opt, model_path.replace('.pt', '_final.pt'))
                     for tlang, val_acc in zip(args.trg, val_accs):
                         if val_acc > best_accs[tlang]:
                             save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
