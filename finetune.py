@@ -82,8 +82,8 @@ def main():
     # device / logging settings
     parser.add_argument('--seed', type=int, default=np.random.randint(0, 1000), help='random seed')
     parser.add_argument('--cuda', type=bool_flag, nargs='?', const=True, default=True, help='use CUDA')
-    parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
-    parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
+    parser.add_argument('--log_interval', type=int, default=100, metavar='N', help='report interval')
+    parser.add_argument('--val_interval', type=int, default=500, metavar='N', help='validation interval')
     parser.add_argument('--debug', action='store_true', help='debug mode')
     parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
 
