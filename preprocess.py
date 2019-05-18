@@ -117,17 +117,16 @@ def main():
         x = load_lm_corpus(os.path.join(tokenized_dir, f'{lang}.unlabeled'), vocab, random_state=args.seed)
         train_set[lang]['unlabeled'] = x
         size = x.size(0)
-        print('[{}] vocab size = {}'.format(lang, len(vocab)))
-        print('[{}] corpus size = {}'.format(lang,  size))
-        print('[{}] corpus OOV rate = {:.2f}'.format(lang, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
+        print('[{}]\tsize = {}'.format(lang,  size))
+        print('[{}]\tOOV rate = {:.2f}'.format(lang, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
 
         for dom in DOMS:
             # load unlabeled data from a language-domain pair
             x = load_lm_corpus(os.path.join(tokenized_dir, f'{lang}.{dom}.unlabeled'), vocab, random_state=args.seed)
             size = x.size(0)
             train_set[lang][dom]['unlabeled'] = x
-            print('[{}_{}] corpus size = {}'.format(lang, dom,  size))
-            print('[{}_{}] corpus OOV rate = {:.2f}'.format(lang, dom, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
+            print('[{}_{}]\tunlabeled size = {}'.format(lang, dom,  size))
+            print('[{}_{}]\tOOV rate = {:.2f}'.format(lang, dom, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
 
             # load train / test data
             train_x, train_y, train_l = load_senti_corpus(os.path.join(tokenized_dir,  f'{lang}.{dom}.train'),
@@ -136,8 +135,8 @@ def main():
                                                        vocab, maxlen=args.maxlen, random_state=args.seed)
             train_set[lang][dom]['train'] = [train_x, train_y, train_l]
             test_set[lang][dom]['test'] = [test_x, test_y, test_l]
-            print('[{}_{}] train size = {}'.format(lang, dom,  train_x.size(0)))
-            print('[{}_{}] test size = {}'.format(lang, dom, test_x.size(0)))
+            print('[{}_{}]\ttrain size = {}'.format(lang, dom,  train_x.size(0)))
+            print('[{}_{}]\ttest size = {}'.format(lang, dom, test_x.size(0)))
 
     f_train = os.path.join(output_dir, 'train.pth')
     f_test = os.path.join(output_dir, 'test.pth')
