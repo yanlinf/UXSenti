@@ -6,9 +6,9 @@ import numpy as np
 import collections
 import argparse
 
-UNK_TOK = '<unk>'
-EOS_TOK = '<eos>'
-PAD_TOK = '<pad>'
+UNK_TOK = '<UNK>'
+EOS_TOK = '<EOS>'
+PAD_TOK = '<PAD>'
 
 
 def check_path(path):
