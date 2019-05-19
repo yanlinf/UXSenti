@@ -99,15 +99,14 @@ class XLXDLM(nn.Module):
                 if lid > 0 or did > 0:  # share rnn layers across all langs / doms
                     for i in range(num_share):
                         lm.rnn.rnns[i] = models[0].rnn.rnns[i]
-
                 if lid > 0:  # share domain specific rnn layers across languages
-                    lm.encoder = models[-1].encoder
-                    lm.encoder_dp = models[-1].encoder_dp
                     for i in range(num_share, num_layers):
                         lm.rnn.rnns[i] = models[did].rnn.rnns[i]
-
                 if did == 0:
                     encoders.append(lm.encoder)
+                else:
+                    lm.encoder = models[-1].encoder
+                    lm.encoder_dp = models[-1].encoder_dp
 
                 if tie_weights:
                     lm.decoder.weight = lm.encoder.weight
