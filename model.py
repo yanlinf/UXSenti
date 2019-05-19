@@ -170,6 +170,14 @@ class MeanPoolClassifier(nn.Module):
 
 
 class XLXDClassifier(XLXDLM):
+    """
+    A sentiment classifier that uses XLXDLM as the feature extractor.
+
+    Paramters
+    ---------
+    n_classes: number of target labels
+    clf_p: dropout applied to the input features
+    """
 
     def __init__(self, n_classes, clf_p, *args, **kwargs):
         super().__init__(*args, **kwargs)
