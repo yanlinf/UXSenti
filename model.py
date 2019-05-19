@@ -117,6 +117,9 @@ class XLXDLM(nn.Module):
         self.encoders = nn.ModuleList(encoders)
         self.crit = nn.CrossEntropyLoss()
 
+    def encoder_weight(self, lid):
+        return self.encoders[lid].weight.data.cpu().numpy()
+
     def _get_model_id(self, lid, did):
         return lid * self.n_doms + did
 
