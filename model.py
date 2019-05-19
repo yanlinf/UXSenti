@@ -9,6 +9,7 @@ class LSTMLanguageModel(nn.Module):
     An AWD-LSTM language model implementation adapapted from
     https://github.com/fastai/fastai/blob/1.0.42/fastai/text/models/awd_lstm.py
     """
+    init_range = 0.1
 
     def __init__(self, vocab_size, emb_size, hidden_size, num_layers, tie_weights,
                  output_p, hidden_p, input_p, embed_p, weight_p):
@@ -21,6 +22,7 @@ class LSTMLanguageModel(nn.Module):
         self.bs = 1
 
         self.encoder = nn.Embedding(vocab_size, emb_size)
+        self.encoder.weight.data.uniform_(-self.init_range, self.init_range)
         self.encoder_dp = EmbeddingDropout(self.encoder, embed_p)
         self.input_dp = RNNDropout(input_p)
         self.rnn = MultiLayerLSTM(emb_size, hidden_size, num_layers, emb_size,
@@ -30,7 +32,6 @@ class LSTMLanguageModel(nn.Module):
 
         if tie_weights:
             self.decoder.weight = self.encoder.weight
-
         self.reset()
 
     def forward(self, inputs):
