@@ -152,15 +152,6 @@ class MultiLayerLSTM(nn.Module):
         self.rnns = [WeightDropout(rnn, weight_dropout) for rnn in self.rnns]
         self.rnns = nn.ModuleList(self.rnns)
         self.hidden_dps = nn.ModuleList([RNNDropout(dropout) for l in range(num_layers)])
-        # self._set_weights()
-
-    def _set_weights(self):
-        w_names = ['weight_ih_l{}', 'bias_ih_l{}', 'bias_hh_l{}']
-        for l in range(self.num_layers):
-            for w_name in w_names:
-                w = getattr(self.rnns[l].module, w_name.format(0))
-                setattr(self, w_name.format(l), w)
-            self.weight_hh_l0_raw = self.rnns[l].weight_hh_l0_raw
 
     def forward(self, inputs, hx=None, return_raw_output=False):
         new_h = []
