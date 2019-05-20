@@ -44,7 +44,7 @@ def load_config(config_dir, args):
         dic = json.load(fin)
 
     for k in dict(vars(args)):
-        if k not in ('resume', 'mode'):
+        if k not in ('resume', 'mode', 'early_stopping', 'cuda'):
             setattr(args, k, dic[k])
     return args
 
@@ -339,8 +339,10 @@ def eval(args):
             else:
                 save_path = os.path.join(args.export, 'model_final.pt')
             model, dis, lm_opt, dis_opt = model_load(save_path)   # Load the best saved model.
+            model.cuda() if args.cuda else model.cpu()
             model.eval()
             test_accs.append(evaluate(model, ds, tid, dom_id))
+
     print_line()
     print(('|' + ' {}_test {:.4f} |' * n_trg).format(*sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], [])))
     print_line()
