@@ -1,9 +1,6 @@
 # UXSenti: Unsupervised Cross-lingual Sentiment Analysis
 
-[![Travis Status](https://travis-ci.com/stanfordnlp/stanfordnlp.svg?token=RPNzRzNDQRoq2x3J2juj&branch=master)](https://travis-ci.com/stanfordnlp/stanfordnlp)
-[![PyPI version](https://img.shields.io/pypi/v/stanfordnlp.svg?colorB=blue)](https://pypi.org/project/stanfordnlp/)
-
-UXSenti contains models that perform cross-lingual sentiment analysis (CLSA) in a fully unsupervised setting, without target language annotation or cross-lingual supervision. These models rely on language modeling to transfer the sentiment resources from the source language to the target language. We address two different CLSA settings:
+This repository contains models that perform cross-lingual sentiment analysis (CLSA) in a fully unsupervised setting, without target language annotation or cross-lingual supervision. These models rely on language modeling to transfer the sentiment resources from the source language to the target language. We address two different CLSA settings:
 - Cross-lingual in-domain (e.g. English hotel reviews for training and Chinese hotel review for testing)
 
 - Cross-lingual cross-domain (e.g. English hotel reviews for training and Chinese book reviews for testing)
@@ -92,6 +89,12 @@ To run CLIDSA_{min}:
 python cross_lingual_in_domain.py --lang en fr --src en --trg fr --dom books --sup_dom books --export export/clid4/
 ```
 
+To run all the CLIDSA experiments (including CLIDSA_{full}, CLIDSA_{min} and MWE):
+
+```bash
+bash run_clid.sh
+```
+
 ### Run Cross-lingual Cross-Domain SA
 
 Run the following command to train a CLCDSA model:
@@ -104,6 +107,12 @@ By default the transfer direction is from $\text{EN-DVD}$ to $\text{DE-Books}$. 
 
 ```bash
 python cross_lingual_cross_domain.py --src fr-music --trg de-books --export export/clcd2/
+```
+
+To run all the CLCDSA experiments (including CLCDSA and MWE):
+
+```bash
+bash run_clcd.sh
 ```
 
 ## References
