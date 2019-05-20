@@ -12,13 +12,11 @@ from utils.vocab import *
 from utils.data import *
 from utils.utils import *
 from utils.bdi import *
-from utils.module import *
-
-LINE_WIDTH = 137
+from utils.layers import *
 
 
 def print_line():
-    print('-' * LINE_WIDTH)
+    print('-' * 138)
 
 
 def evaluate(model, ds, lid, did):
@@ -80,15 +78,13 @@ def main():
     parser.add_argument('--lambd_clf', type=float, default=0.01, help='coefficient of the classification loss')
 
     # regularization
-    parser.add_argument('--dropouto', type=float, default=0.4, help='dropout applied to rnn outputs')
     parser.add_argument('--dropoutc', type=float, default=0.6, help='dropout applied to classifier')
+    parser.add_argument('--dropouto', type=float, default=0.4, help='dropout applied to rnn outputs')
     parser.add_argument('--dropouth', type=float, default=0.3, help='dropout for rnn layers')
     parser.add_argument('--dropouti', type=float, default=0.4, help='dropout for input embedding layers')
     parser.add_argument('--dropoute', type=float, default=0.1, help='dropout to remove words from embedding layer')
     parser.add_argument('--dropoutw', type=float, default=0.5, help='weight dropout applied to the RNN hidden to hidden matrix')
     parser.add_argument('--dropoutd', type=float, default=0.1, help='dropout applied to language discriminator')
-    parser.add_argument('--alpha', type=float, default=2, help='alpha L2 regularization on RNN activation (alpha = 0 means no regularization)')
-    parser.add_argument('--beta', type=float, default=1, help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
     parser.add_argument('--wdecay', type=float, default=1.2e-6, help='weight decay applied to all weights')
 
     # optimization
@@ -98,7 +94,7 @@ def main():
     parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--optimizer', type=str,  default='adam', choices=['adam', 'sgd'], help='optimizer to use (sgd, adam)')
-    parser.add_argument('--beta1', type=float, default=0.7, help='beta of adam')
+    parser.add_argument('--beta1', type=float, default=0.7, help='beta1 for adam optimizer')
     parser.add_argument('--dis_nsteps', type=int, help='n discriminator steps for each lm step')
     parser.add_argument('-lr', '--lr', type=float, default=0.003, help='learning rate')
     parser.add_argument('--dis_lr', type=float, default=0.003, help='initial learning rate for the discriminators')
@@ -111,7 +107,7 @@ def main():
     parser.add_argument('--log_interval', type=int, default=200, metavar='N', help='report interval')
     parser.add_argument('--val_interval', type=int, default=1000, metavar='N', help='validation interval')
     parser.add_argument('--debug', action='store_true', help='debug mode')
-    parser.add_argument('--export', type=str,  default='export/', help='dir to save the model')
+    parser.add_argument('--export', type=str,  default='export/clid/', help='dir to save the model')
 
     args = parser.parse_args()
     if args.debug:
@@ -276,15 +272,15 @@ def train(args):
         if args.dis_clip > 0:
             for x in dis.parameters():
                 x.data.clamp_(-args.dis_clip, args.dis_clip)
-        dis_opt.step()
         lm_opt.step()
+        dis_opt.step()
 
         if (step + 1) % args.log_interval == 0:
             total_loss /= args.log_interval
             total_clf_loss /= args.log_interval
             total_dis_loss /= args.log_interval
             elapsed = time.time() - start_time
-            print('| step {:4d} | lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:7.4f} | avg_ppl {:7.2f} | clf {:7.4f} | dis {:7.4f} |'.format(
+            print('| step {:5d} | lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:7.4f} | avg_ppl {:7.2f} | clf {:7.4f} | dis {:7.4f} |'.format(
                 step, lm_opt.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                 total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss, total_dis_loss))
             total_loss[:, :], total_clf_loss, total_dis_loss = 0, 0, 0
@@ -300,7 +296,7 @@ def train(args):
                                                 model.encoder_weight(tid),
                                                 lexicon, 10000, lexicon_size=lexsz) for lexicon, lexsz, tid in lexicons]
                 print_line()
-                print(('| step {:4d} | train {:.4f} |' +
+                print(('| step {:5d} | train {:.4f} |' +
                        ' val' + ' {} {:.4f}' * n_trg + ' |' +
                        ' test' + ' {} {:.4f}' * n_trg + ' |' +
                        ' bdi' + ' {} {:.4f}' * n_trg + ' |').format(step, train_acc,
@@ -317,7 +313,6 @@ def train(args):
                         model_save(model, dis, lm_opt, dis_opt, save_path)
                         best_accs[tlang] = val_acc
                 print_line()
-
             model.train()
             start_time = time.time()
 
@@ -349,6 +344,7 @@ def eval(args):
     print_line()
     print(('|' + ' {}_test {:.4f} |' * n_trg).format(*sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], [])))
     print_line()
+
 
 if __name__ == '__main__':
     main()
