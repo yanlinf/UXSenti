@@ -44,7 +44,7 @@ def load_config(config_dir, args):
         dic = json.load(fin)
 
     for k in dict(vars(args)):
-        if k not in ('resume', 'mode', 'early_stopping', 'cuda'):
+        if k not in ('resume', 'mode', 'early_stopping', 'cuda', 'test'):
             setattr(args, k, dic[k])
     return args
 
