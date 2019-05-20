@@ -101,7 +101,7 @@ def main():
         vocab.cutoff(args.vocab_cutoff - len(EXTRA_TOKENS))
         for tok in EXTRA_TOKENS:
             vocab.add_word(tok)
-        vocab.save(os.path.join(vocab_dir, f'vocab_{lang}.txt'))
+        vocab.save(os.path.join(vocab_dir, f'{lang}.vocab'))
         print('{} vocab of size {} generated'.format(lang, len(vocab)))
 
     print()
@@ -110,7 +110,7 @@ def main():
     test_set = {lang: {dom: {} for dom in DOMS} for lang in LANGS}
     for lang in LANGS:
         # load vocab
-        vocab = Vocab(path=os.path.join(vocab_dir, f'vocab_{lang}.txt'))
+        vocab = Vocab(path=os.path.join(vocab_dir, f'{lang}.vocab'))
         train_set[lang]['vocab'] = test_set[lang]['vocab'] = vocab
 
         # load unlabeled data from a language
