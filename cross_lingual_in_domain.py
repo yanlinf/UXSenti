@@ -62,6 +62,8 @@ def main():
     parser.add_argument('--val_size', type=int, default=600, help='validation set size')
     parser.add_argument('--early_stopping',  type=bool_flag, nargs='?', const=True, default=False, help='perform early stopping')
     parser.add_argument('--mode', choices=['train', 'eval'], default='train', help='train or evaluate')
+    parser.add_argument('--mwe', action='store_true', help='run the MWE model variant')
+    parser.add_argument('--mwe_path', default='data/vectors/vectors-{}.txt', help='run the MWE model variant')
 
     # architecture
     parser.add_argument('--emb_dim', type=int, default=300, help='size of word embeddings')
@@ -99,7 +101,7 @@ def main():
     parser.add_argument('-lr', '--lr', type=float, default=0.003, help='learning rate')
     parser.add_argument('--dis_lr', type=float, default=0.003, help='initial learning rate for the discriminators')
     parser.add_argument('--grad_clip', type=float, default=0.25, help='gradient clipping')
-    parser.add_argument('--dis_clip', type=float, default=1, help='gradient clipping for discriminator')
+    parser.add_argument('--dis_clip', type=float, default=0, help='clipping discriminator weights')
 
     # device / logging settings
     parser.add_argument('--seed', type=int, default=0, help='random seed')
@@ -112,8 +114,9 @@ def main():
     args = parser.parse_args()
     if args.debug:
         parser.set_defaults(log_interval=20, val_interval=40)
+    if args.mwe:
+        parser.set_defaults(lr=0.001)
     args = parser.parse_args()
-
     if args.mode == 'eval':
         args = load_config(args.export, args)
     elif args.resume:
@@ -182,8 +185,14 @@ def train(args):
                                vocab_sizes=list(map(len, vocabs)), emb_size=args.emb_dim, hidden_size=args.hid_dim,
                                num_layers=args.nlayers, num_share=args.nshare, tie_weights=args.tie_softmax,
                                output_p=args.dropouto, hidden_p=args.dropouth, input_p=args.dropouti, embed_p=args.dropoute, weight_p=args.dropoutw)
-
         dis = Discriminator(args.emb_dim, args.dis_hid_dim, len(args.lang), args.dis_nlayers, args.dropoutd)
+
+        if args.mwe:
+            mwe = []
+            for lid, (v, lang) in enumerate(zip(vocabs, args.lang)):
+                x, count = load_vectors_with_vocab(args.mwe_path.format(lang), v, -1)
+                model.encoders[lid].weight.data.copy_(torch.from_numpy(x))
+                freeze_net(model.encoders[lid])
 
         if args.optimizer == 'sgd':
             lm_opt = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wdecay)
@@ -234,29 +243,30 @@ def train(args):
         lm_opt.zero_grad()
         dis_opt.zero_grad()
 
-        # language modeling loss
-        dis_x = []
-        for lid, t in enumerate(unlabeled):
-            for did, lm_x in enumerate(t):
-                if ptrs[lid, did] + bptt + 1 > lm_x.size(0):
-                    ptrs[lid, did] = 0
-                    model.reset(lid=lid, did=did)
-                p = ptrs[lid, did]
-                xs = lm_x[p: p + bptt].t().contiguous()
-                ys = lm_x[p + 1: p + 1 + bptt].t().contiguous()
-                lm_loss, hid = model.lm_loss(xs, ys, lid=lid, did=did, return_h=True)
-                loss = loss + lm_loss * args.lambd_lm
-                total_loss[lid, did] += lm_loss.item()
-                ptrs[lid, did] += bptt
-                if did == dom_id:
-                    dis_x.append(hid[-1].mean(1))
+        if not args.mwe:
+            # language modeling loss
+            dis_x = []
+            for lid, t in enumerate(unlabeled):
+                for did, lm_x in enumerate(t):
+                    if ptrs[lid, did] + bptt + 1 > lm_x.size(0):
+                        ptrs[lid, did] = 0
+                        model.reset(lid=lid, did=did)
+                    p = ptrs[lid, did]
+                    xs = lm_x[p: p + bptt].t().contiguous()
+                    ys = lm_x[p + 1: p + 1 + bptt].t().contiguous()
+                    lm_loss, hid = model.lm_loss(xs, ys, lid=lid, did=did, return_h=True)
+                    loss = loss + lm_loss * args.lambd_lm
+                    total_loss[lid, did] += lm_loss.item()
+                    ptrs[lid, did] += bptt
+                    if did == dom_id:
+                        dis_x.append(hid[-1].mean(1))
 
-        # language adversarial loss
-        dis_x_rev = GradReverse.apply(torch.cat(dis_x, 0))
-        dis_loss = crit(dis(dis_x_rev), dis_y)
-        loss = loss + args.lambd_dis * dis_loss
-        total_dis_loss += dis_loss.item()
-        loss.backward()
+            # language adversarial loss
+            dis_x_rev = GradReverse.apply(torch.cat(dis_x, 0))
+            dis_loss = crit(dis(dis_x_rev), dis_y)
+            loss = loss + args.lambd_dis * dis_loss
+            total_dis_loss += dis_loss.item()
+            loss.backward()
 
         # sentiment classification loss
         try:
