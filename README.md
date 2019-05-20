@@ -103,7 +103,7 @@ Run the following command to train a CLCDSA model:
 python cross_lingual_cross_domain.py --export export/clcd/
 ```
 
-By default the transfer direction is from $\text{EN-DVD}$ to $\text{DE-Books}$. To specify a different direction:
+By default the transfer direction is from EN-DVD to DE-Books. To specify a different direction:
 
 ```bash
 python cross_lingual_cross_domain.py --src fr-music --trg de-books --export export/clcd2/
