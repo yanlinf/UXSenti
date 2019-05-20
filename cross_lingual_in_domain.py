@@ -63,7 +63,7 @@ def main():
     parser.add_argument('--early_stopping',  type=bool_flag, nargs='?', const=True, default=False, help='perform early stopping')
     parser.add_argument('--mode', choices=['train', 'eval'], default='train', help='train or evaluate')
     parser.add_argument('--mwe', action='store_true', help='run the MWE model variant')
-    parser.add_argument('--mwe_path', default='data/vectors/vectors-{}.txt', help='run the MWE model variant')
+    parser.add_argument('--mwe_path', default='data/vectors/vectors-{}.txt', help='path to multilingual word embeddings')
 
     # architecture
     parser.add_argument('--emb_dim', type=int, default=300, help='size of word embeddings')
