@@ -6,6 +6,7 @@ import os
 import torch
 from utils.vocab import *
 from utils.data import *
+from utils.utils import *
 
 
 LANGS = ['en', 'fr', 'de', 'ja']
@@ -32,6 +33,7 @@ def main():
     parser.add_argument('--output_dir', default='data/', help='output directory')
     parser.add_argument('--vocab_cutoff', type=int, default=15000, help='maximum vocab size')
     parser.add_argument('--maxlen', type=int, default=256, help='maximum length for each labeled example')
+    parser.add_argument('--val_size', type=int, default=600, help='size of the validation set')
     parser.add_argument('--seed', type=int, default=0, help='random seed')
     args = parser.parse_args()
 
@@ -106,16 +108,18 @@ def main():
 
     print()
     print('Binarizing data...')
-    train_set = {lang: {dom: {} for dom in DOMS} for lang in LANGS}
-    test_set = {lang: {dom: {} for dom in DOMS} for lang in LANGS}
+    unlabeled_set = {lang: {} for lang in LANGS}
+    train_set = {lang: {} for lang in LANGS}
+    val_set = {lang: {} for lang in LANGS}
+    test_set = {lang: {} for lang in LANGS}
     for lang in LANGS:
         # load vocab
         vocab = Vocab(path=os.path.join(vocab_dir, f'{lang}.vocab'))
-        train_set[lang]['vocab'] = test_set[lang]['vocab'] = vocab
+        unlabeled_set[lang]['vocab'] = train_set[lang]['vocab'] = val_set[lang]['vocab'] = test_set[lang]['vocab'] = vocab
 
         # load unlabeled data from a language
         x = load_lm_corpus(os.path.join(tokenized_dir, f'{lang}.unlabeled'), vocab, random_state=args.seed)
-        train_set[lang]['unlabeled'] = x
+        unlabeled_set[lang]['unlabeled'] = x
         size = x.size(0)
         print('[{}]\tsize = {}'.format(lang,  size))
         print('[{}]\tOOV rate = {:.2f}'.format(lang, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
@@ -124,7 +128,7 @@ def main():
             # load unlabeled data from a language-domain pair
             x = load_lm_corpus(os.path.join(tokenized_dir, f'{lang}.{dom}.unlabeled'), vocab, random_state=args.seed)
             size = x.size(0)
-            train_set[lang][dom]['unlabeled'] = x
+            unlabeled_set[lang][dom] = x
             print('[{}_{}]\tunlabeled size = {}'.format(lang, dom,  size))
             print('[{}_{}]\tOOV rate = {:.2f}'.format(lang, dom, x.bincount()[vocab.w2idx[UNK_TOK]].item() / size))
 
@@ -133,13 +137,19 @@ def main():
                                                           vocab, maxlen=args.maxlen, random_state=args.seed)
             test_x, test_y, test_l = load_senti_corpus(os.path.join(tokenized_dir,  f'{lang}.{dom}.test'),
                                                        vocab, maxlen=args.maxlen, random_state=args.seed)
-            train_set[lang][dom]['train'] = [train_x, train_y, train_l]
-            test_set[lang][dom]['test'] = [test_x, test_y, test_l]
+            train_set[lang][dom] = [train_x, train_y, train_l]
+            val_set[lang][dom] = [val_x, val_y, val_l] = sample([train_x, train_y, train_l], args.val_size)
+            test_set[lang][dom] = [test_x, test_y, test_l]
             print('[{}_{}]\ttrain size = {}'.format(lang, dom,  train_x.size(0)))
+            print('[{}_{}]\tval size = {}'.format(lang, dom,  val_x.size(0)))
             print('[{}_{}]\ttest size = {}'.format(lang, dom, test_x.size(0)))
 
+    f_unlabeled = os.path.join(output_dir, 'unlabeled.pth')
     f_train = os.path.join(output_dir, 'train.pth')
+    f_val = os.path.join(output_dir, 'val.pth')
     f_test = os.path.join(output_dir, 'test.pth')
+    torch.save(unlabeled_set, f_unlabeled)
+    torch.save(val_set, f_val)
     torch.save(train_set, f_train)
     torch.save(test_set, f_test)
     print('training set saved to {}'.format(f_train))
