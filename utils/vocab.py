@@ -75,13 +75,3 @@ class Vocab(object):
     @property
     def counts(self):
         return self._counts
-
-
-if __name__ == '__main__':
-    corpus = ['I love you', 'you hates me ']
-    vocab = Vocab(corpus)
-    vocab.save('vocab_test.txt')
-    vocab = Vocab(path='vocab_test.txt')
-    vocab.add_word('<eos>', 999)
-    vocab.cutoff(2)
-    vocab.save('vocab_test.txt')
