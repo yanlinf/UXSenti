@@ -152,8 +152,10 @@ def main():
     torch.save(val_set, f_val)
     torch.save(train_set, f_train)
     torch.save(test_set, f_test)
-    print('training set saved to {}'.format(f_train))
-    print('test set saved to {}'.format(f_test))
+    print('unlabeled data saved to {}'.format(f_unlabeled))
+    print('training data saved to {}'.format(f_train))
+    print('validation data saved to {}'.format(f_val))
+    print('test data saved to {}'.format(f_test))
 
 
 if __name__ == '__main__':
