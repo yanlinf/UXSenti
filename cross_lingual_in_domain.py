@@ -56,14 +56,17 @@ def main():
     parser.add_argument('-src', '--src', choices=['en', 'fr', 'de', 'ja'], default='en', help='l_s, source_language')
     parser.add_argument('-trg', '--trg', choices=['en', 'fr', 'de', 'ja'], nargs='+', default=['fr', 'de', 'ja'], help='l_t, target_language')
     parser.add_argument('--sup_dom', choices=['books', 'dvd', 'music'], default='books', help='d_s (= d_t), domain to perform supervised learning')
-    parser.add_argument('--train', default='data/train.pth', help='traning and testing data')
-    parser.add_argument('--test', default='data/test.pth', help='traning and testing data')
-    parser.add_argument('--resume', help='path of model to resume')
-    parser.add_argument('--val_size', type=int, default=600, help='validation set size')
-    parser.add_argument('--early_stopping',  type=bool_flag, nargs='?', const=True, default=False, help='perform early stopping')
-    parser.add_argument('--mode', choices=['train', 'eval'], default='train', help='train or evaluate')
     parser.add_argument('--mwe', action='store_true', help='run the MWE model variant')
     parser.add_argument('--mwe_path', default='data/vectors/vectors-{}.txt', help='path to multilingual word embeddings')
+    parser.add_argument('--resume', help='path of model to resume')
+    parser.add_argument('--early_stopping',  type=bool_flag, nargs='?', const=True, default=False, help='perform early stopping')
+    parser.add_argument('--mode', choices=['train', 'eval'], default='train', help='train or evaluate')
+
+    # datasets
+    parser.add_argument('--unlabeled', default='data/unlabeled.pth', help='binarized unlabeled data')
+    parser.add_argument('--train', default='data/train.pth', help='binarized training data')
+    parser.add_argument('--val', default='data/val.pth', help='binarized validation data')
+    parser.add_argument('--test', default='data/test.pth', help='binarized test data')
 
     # architecture
     parser.add_argument('--emb_dim', type=int, default=300, help='size of word embeddings')
@@ -154,13 +157,15 @@ def train(args):
     src_id, dom_id = lang2id[args.src], dom2id[args.sup_dom]
     trg_ids = [lang2id[t] for t in args.trg]
 
+    unlabeled_set = torch.load(args.unlabeled)
     train_set = torch.load(args.train)
+    val_set = torch.load(args.val)
     test_set = torch.load(args.test)
     vocabs = [train_set[lang]['vocab'] for lang in args.lang]
-    unlabeled = to_device([[batchify(train_set[lang][dom]['unlabeled'], args.batch_size) for dom in args.dom] for lang in args.lang], args.cuda)
-    train_x, train_y, train_l = to_device(train_set[args.src][args.sup_dom]['train'], args.cuda)
-    val_ds = [sample(to_device(train_set[t][args.sup_dom]['train'], args.cuda), args.val_size) for t in args.trg]
-    test_ds = [to_device(test_set[t][args.sup_dom]['test'], args.cuda) for t in args.trg]
+    unlabeled = to_device([[batchify(unlabeled_set[lang][dom], args.batch_size) for dom in args.dom] for lang in args.lang], args.cuda)
+    train_x, train_y, train_l = to_device(train_set[args.src][args.sup_dom], args.cuda)
+    val_ds = [to_device(val_set[t][args.sup_dom], args.cuda) for t in args.trg]
+    test_ds = [to_device(test_set[t][args.sup_dom], args.cuda) for t in args.trg]
 
     senti_train = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.clf_batch_size)
     train_iter = iter(senti_train)
