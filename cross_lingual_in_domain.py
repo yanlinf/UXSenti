@@ -67,6 +67,8 @@ def main():
     parser.add_argument('--train', default='data/train.pth', help='binarized training data')
     parser.add_argument('--val', default='data/val.pth', help='binarized validation data')
     parser.add_argument('--test', default='data/test.pth', help='binarized test data')
+    parser.add_argument('--sample_train', type=int, default=0, help='downsample training set to n examples (zero to disable)')
+    parser.add_argument('--sample_unlabeled', type=int, default=0, help='downsample unlabeled_set to n tokens (zero to disable)')
 
     # architecture
     parser.add_argument('--emb_dim', type=int, default=300, help='size of word embeddings')
@@ -166,6 +168,15 @@ def train(args):
     train_x, train_y, train_l = to_device(train_set[args.src][args.sup_dom], args.cuda)
     val_ds = [to_device(val_set[t][args.sup_dom], args.cuda) for t in args.trg]
     test_ds = [to_device(test_set[t][args.sup_dom], args.cuda) for t in args.trg]
+
+    if args.sample_unlabeled > 0:
+        print('Downsampling unlabeled set...')
+        print()
+        unlabeled = [[x[:(args.sample_unlabeled // args.batch_size)] for x in t] for t in unlabeled]
+    if args.sample_train > 0:
+        print('Downsampling training set...')
+        print()
+        train_x, train_y, train_l = sample([train_x, train_y, train_l], args.sample_train, True)
 
     senti_train = DataLoader(SentiDataset(train_x, train_y, train_l), batch_size=args.clf_batch_size)
     train_iter = iter(senti_train)
