@@ -41,10 +41,10 @@ class LSTMLanguageModel(nn.Module):
             self.reset()
 
         outputs = self.input_dp(self.encoder_dp(inputs))
-        outputs, hidden, raw_outputs = self.rnn(outputs, self.hidden, True)
+        outputs, hidden, raw_outputs, drop_outputs = self.rnn(outputs, self.hidden, True)
         decoded = self.decoder(self.ouput_dp(outputs))
         self.hidden = self._to_detach(hidden)
-        return decoded, raw_outputs
+        return decoded, raw_outputs, drop_outputs
 
     def _to_detach(self, x):
         if isinstance(x, (list, tuple)):
@@ -75,7 +75,7 @@ class XLXDLM(nn.Module):
     """
 
     def __init__(self, n_langs, n_doms, vocab_sizes, emb_size, hidden_size, num_layers, num_share, tie_weights,
-                 output_p, hidden_p, input_p, embed_p, weight_p):
+                 output_p, hidden_p, input_p, embed_p, weight_p, alpha, beta):
         super().__init__()
         self.n_langs = n_langs
         self.n_doms = n_doms
@@ -90,6 +90,8 @@ class XLXDLM(nn.Module):
         self.input_p = input_p
         self.embed_p = embed_p
         self.weight_p = weight_p
+        self.alpha = alpha
+        self.beta = beta
 
         encoders = []
         models = []
@@ -128,12 +130,16 @@ class XLXDLM(nn.Module):
         return self.models[self._get_model_id(lid, did)](inputs)
 
     def lm_loss(self, inputs, target, lid, did, return_h=False):
-        decoded, raw_outputs = self.models[self._get_model_id(lid, did)](inputs)
-        loss = self.crit(decoded.view(-1, decoded.size(-1)), target.view(-1))
+        decoded, raw_outputs, drop_outputs = self.models[self._get_model_id(lid, did)](inputs)
+        loss = raw_loss = self.crit(decoded.view(-1, decoded.size(-1)), target.view(-1))
+        if self.alpha > 0:  # AR regularization
+            loss = loss + sum(self.alpha * h.pow(2).mean() for h in drop_outputs[-1:])
+        if self.beta > 0:  # TAR regularization
+            loss = loss + sum(self.beta * (h[:, 1:] - h[:, :-1]).pow(2).mean() for h in raw_outputs[-1:])
         if return_h:
-            return loss, raw_outputs
+            return raw_loss, loss, raw_outputs
         else:
-            return loss
+            return raw_loss, loss
 
     def reset(self, lid=None, did=None):
         if lid is None or did is None:
@@ -190,7 +196,7 @@ class XLXDClassifier(XLXDLM):
 
     def forward(self, inputs, lengths, lid, did):
         prev_h = self.reset(lid, did)
-        _, raw_outputs = super().forward(inputs, lid, did)
+        _, raw_outputs, _ = super().forward(inputs, lid, did)
         self.set_hidden(prev_h, lid, did)
         return self.clfs[did](raw_outputs[-1], lengths)
 

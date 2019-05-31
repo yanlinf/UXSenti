@@ -202,7 +202,8 @@ def train(args):
         model = XLXDClassifier(n_classes=2, clf_p=args.dropoutc, n_langs=len(args.lang), n_doms=len(args.dom),
                                vocab_sizes=list(map(len, vocabs)), emb_size=args.emb_dim, hidden_size=args.hid_dim,
                                num_layers=args.nlayers, num_share=args.nshare, tie_weights=args.tie_softmax,
-                               output_p=args.dropouto, hidden_p=args.dropouth, input_p=args.dropouti, embed_p=args.dropoute, weight_p=args.dropoutw)
+                               output_p=args.dropouto, hidden_p=args.dropouth, input_p=args.dropouti, embed_p=args.dropoute,
+                               weight_p=args.dropoutw, alpha=2, beta=1)
         dis = Discriminator(args.emb_dim, args.dis_hid_dim, len(args.lang), args.dis_nlayers, args.dropoutd)
 
         if args.mwe:
@@ -272,9 +273,9 @@ def train(args):
                     p = ptrs[lid, did]
                     xs = lm_x[p: p + bptt].t().contiguous()
                     ys = lm_x[p + 1: p + 1 + bptt].t().contiguous()
-                    lm_loss, hid = model.lm_loss(xs, ys, lid=lid, did=did, return_h=True)
+                    lm_raw_loss, lm_loss, hid = model.lm_loss(xs, ys, lid=lid, did=did, return_h=True)
                     loss = loss + lm_loss * args.lambd_lm
-                    total_loss[lid, did] += lm_loss.item()
+                    total_loss[lid, did] += lm_raw_loss.item()
                     ptrs[lid, did] += bptt
                     if did == dom_id:
                         dis_x.append(hid[-1].mean(1))

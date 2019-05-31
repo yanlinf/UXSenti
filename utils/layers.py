@@ -117,9 +117,10 @@ class MultiLayerLSTM(nn.Module):
         self.rnns = nn.ModuleList(self.rnns)
         self.hidden_dps = nn.ModuleList([RNNDropout(dropout) for l in range(num_layers)])
 
-    def forward(self, inputs, hx=None, return_raw_output=False):
+    def forward(self, inputs, hx=None, return_outputs=False):
         new_h = []
         raw_outputs = []
+        drop_outputs = []
         outputs = inputs
         for l, (rnn, hid_dp) in enumerate(zip(self.rnns, self.hidden_dps)):
             outputs, hid = rnn(outputs, hx[l] if hx else None)
@@ -127,7 +128,8 @@ class MultiLayerLSTM(nn.Module):
             raw_outputs.append(outputs)
             if l != self.num_layers - 1:
                 outputs = hid_dp(outputs)
-        if return_raw_output:
-            return outputs, new_h, raw_outputs
+            drop_outputs.append(outputs)
+        if return_outputs:
+            return outputs, new_h, raw_outputs, drop_outputs
         else:
             return outputs, new_h
