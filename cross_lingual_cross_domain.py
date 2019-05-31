@@ -339,7 +339,7 @@ def train(args):
 def eval(args):
     test_set = torch.load(args.test)
     trg_lang, trg_dom = args.trg.split('-')
-    test_x, test_y, test_l = to_device(test_set[trg_lang][trg_dom]['test'], args.cuda)
+    test_x, test_y, test_l = to_device(test_set[trg_lang][trg_dom], args.cuda)
     test_ds = DataLoader(SentiDataset(test_x, test_y, test_l), batch_size=args.test_batch_size)
     with torch.no_grad():
         if args.early_stopping:

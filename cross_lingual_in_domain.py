@@ -356,7 +356,7 @@ def eval(args):
     trg_ids = [lang2id[t] for t in args.trg]
 
     test_set = torch.load(args.test)
-    test_ds = [to_device(test_set[t][args.sup_dom]['test'], args.cuda) for t in args.trg]
+    test_ds = [to_device(test_set[t][args.sup_dom], args.cuda) for t in args.trg]
     test_ds = [DataLoader(SentiDataset(*ds), batch_size=args.test_batch_size) for ds in test_ds]
 
     with torch.no_grad():
