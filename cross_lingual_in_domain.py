@@ -118,7 +118,7 @@ def main():
     if args.debug:
         parser.set_defaults(log_interval=20, val_interval=40)
     if args.mwe:
-        parser.set_defaults(lr=0.001)
+        parser.set_defaults(lr=0.001, lambd_clf=1.)
     args = parser.parse_args()
     if args.mode == 'eval':
         args = load_config(args.export, args)
