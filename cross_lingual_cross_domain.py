@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--tie_softmax', type=bool_flag, nargs='?', const=True, default=True, help='tied embeddings')
     parser.add_argument('--lambd_lm', type=float, default=1, help='coefficient of the language modeling')
     parser.add_argument('--lambd_dis', type=float, default=0.1, help='coefficient of the adversarial loss')
-    parser.add_argument('--lambd_clf', type=float, default=0.01, help='coefficient of the classification loss')
+    parser.add_argument('--lambd_clf', type=float, default=0.003, help='coefficient of the classification loss')
 
     # regularization
     parser.add_argument('--dropoutc', type=float, default=0.6, help='dropout applied to classifier')
