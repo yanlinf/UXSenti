@@ -22,7 +22,7 @@ VALID_PAIRS = [lang + '-' + dom for lang in LANGS for dom in DOMS]
 
 
 def print_line():
-    print('-' * 111)
+    print('-' * 110)
 
 
 def evaluate(model, ds, lid, did):
@@ -303,7 +303,7 @@ def train(args):
             total_clf_loss /= args.log_interval
             total_dis_loss /= args.log_interval
             elapsed = time.time() - start_time
-            print('| step {:5d} | lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:7.4f} | avg_ppl {:7.2f} | clf {:7.4f} | lang {:7.4f} |'.format(
+            print('| step {:5d} | lr {:05.5f} | ms/batch {:7.2f} | lm_loss {:7.4f} | avg_ppl {:7.2f} | clf {:7.4f} | dis {:7.4f} |'.format(
                 step, lm_opt.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                 total_loss.mean(), np.exp(total_loss).mean(), total_clf_loss, total_dis_loss))
             total_loss[:], total_clf_loss, total_dis_loss = 0, 0, 0
