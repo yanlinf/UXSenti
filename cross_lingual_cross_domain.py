@@ -304,7 +304,8 @@ def train(args):
                 x.data.clamp_(-args.dis_clip, args.dis_clip)
         lm_opt.step()
         dis_opt.step()
-        lm_opt.param_groups[0]['lr'] = lr0
+        if not args.mwe:
+            lm_opt.param_groups[0]['lr'] = lr0
 
         if (step + 1) % args.log_interval == 0:
             total_loss /= args.log_interval

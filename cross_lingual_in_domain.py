@@ -265,7 +265,6 @@ def train(args):
         dis_opt.zero_grad()
 
         if not args.mwe:
-
             seq_len = max(5, int(np.random.normal(bptt if np.random.random() < 0.95 else bptt / 2., 5)))
             lr0 = lm_opt.param_groups[0]['lr']
             lm_opt.param_groups[0]['lr'] = lr0 * seq_len / args.bptt
@@ -310,7 +309,8 @@ def train(args):
                 x.data.clamp_(-args.dis_clip, args.dis_clip)
         lm_opt.step()
         dis_opt.step()
-        lm_opt.param_groups[0]['lr'] = lr0
+        if not args.mwe:
+            lm_opt.param_groups[0]['lr'] = lr0
 
         if (step + 1) % args.log_interval == 0:
             total_loss /= args.log_interval
