@@ -208,11 +208,13 @@ def train(args):
             model.encoders[1].weight.data.copy_(torch.from_numpy(x))
             freeze_net(model.encoders)
 
+        params = [{'params': model.models.parameters(),  'lr': args.lr},
+                  {'params': model.clfs.parameters(), 'lr': args.lr}]
         if args.optimizer == 'sgd':
-            lm_opt = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wdecay)
+            lm_opt = torch.optim.SGD(params, lr=args.lr, weight_decay=args.wdecay)
             dis_opt = torch.optim.SGD(dis.parameters(), lr=args.lr, weight_decay=args.wdecay)
         if args.optimizer == 'adam':
-            lm_opt = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wdecay, betas=(args.beta1, 0.999))
+            lm_opt = torch.optim.Adam(params, lr=args.lr, weight_decay=args.wdecay, betas=(args.beta1, 0.999))
             dis_opt = torch.optim.Adam(dis.parameters(), lr=args.lr, weight_decay=args.wdecay, betas=(args.beta1, 0.999))
 
     crit = nn.CrossEntropyLoss()
@@ -256,6 +258,10 @@ def train(args):
         dis_opt.zero_grad()
 
         if not args.mwe:
+            seq_len = max(5, int(np.random.normal(bptt if np.random.random() < 0.95 else bptt / 2., 5)))
+            lr0 = lm_opt.param_groups[0]['lr']
+            lm_opt.param_groups[0]['lr'] = lr0 * seq_len / args.bptt
+
             # language modeling loss
             dis_x = []
             for i, ((lid, did), lm_x) in enumerate(zip(id_pairs, unlabeled)):
@@ -298,6 +304,7 @@ def train(args):
                 x.data.clamp_(-args.dis_clip, args.dis_clip)
         lm_opt.step()
         dis_opt.step()
+        lm_opt.param_groups[0]['lr'] = lr0
 
         if (step + 1) % args.log_interval == 0:
             total_loss /= args.log_interval
