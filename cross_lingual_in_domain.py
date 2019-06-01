@@ -250,6 +250,7 @@ def train(args):
 
     bptt = args.bptt
     best_accs = {tlang: 0. for tlang in args.trg}
+    final_test_accs = {tlang: 0. for tlang in args.trg}
     print('Traning:')
     print_line()
     ptrs = np.zeros((len(args.lang), len(args.dom)), dtype=np.int64)  # pointers for reading unlabeled data, of shape (n_lang, n_dom)
@@ -343,18 +344,22 @@ def train(args):
                 print_line()
                 print('saving model to {}'.format(model_path.replace('.pt', '_final.pt')))
                 model_save(model, dis, lm_opt, dis_opt, model_path.replace('.pt', '_final.pt'))
-                for tlang, val_acc in zip(args.trg, val_accs):
+                for tlang, val_acc, test_acc in zip(args.trg, val_accs, test_accs):
                     if val_acc > best_accs[tlang]:
                         save_path = model_path.replace('.pt', '_{}.pt'.format(tlang))
                         print('saving {} model to {}'.format(tlang, save_path))
                         model_save(model, dis, lm_opt, dis_opt, save_path)
                         best_accs[tlang] = val_acc
+                        final_test_accs[tlang] = test_acc
                 print_line()
             model.train()
             start_time = time.time()
 
     print_line()
-    print(('Training ends - best val acc:' + ' {} {:.4f}' * n_trg).format(*sum([[tlang, best_accs[tlang]] for tlang in args.trg], [])))
+    print('Training ended with {} steps'.format(step + 1))
+    print(('Best val acc:             ' + ' {} {:.4f}' * n_trg).format(*sum([[tlang, best_accs[tlang]] for tlang in args.trg], [])))
+    print(('Test acc (w/ early stop): ' + ' {} {:.4f}' * n_trg).format(*sum([[tlang, final_test_accs[tlang]] for tlang in args.trg], [])))
+    print(('Test acc (w/o early stop):' + ' {} {:.4f}' * n_trg).format(*sum([[tlang, acc] for tlang, acc in zip(args.trg, test_accs)], [])))
 
 
 def eval(args):
