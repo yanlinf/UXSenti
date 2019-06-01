@@ -242,6 +242,7 @@ def train(args):
 
     bptt = args.bptt
     best_acc = 0.
+    final_test_acc = 0.
     print('Traning:')
     print_line()
     p = 0
@@ -335,14 +336,16 @@ def train(args):
                 if val_acc > best_acc:
                     print('saving model to {}'.format(model_path))
                     model_save(model, dis, lm_opt, dis_opt, model_path)
-                    best_acc = val_acc
+                    best_acc, final_test_acc = val_acc, test_acc
                 print_line()
             model.train()
             start_time = time.time()
 
-    ###############################################################################
-    # Testing
-    ###############################################################################
+    print_line()
+    print('Training ended with {} steps'.format(step + 1))
+    print('Best val acc:              {}->{} {:.4f}'.format(args.src, args.trg, best_acc))
+    print('Test acc (w/ early stop):  {}->{} {:.4f}'.format(args.src, args.trg, final_test_acc))
+    print('Test acc (w/o early stop): {}->{} {:.4f}'.format(args.src, args.trg, final_test_acc))
 
 
 def eval(args):
@@ -360,7 +363,7 @@ def eval(args):
         model.eval()
         test_acc = evaluate(model, test_ds, 1, 0)
     print_line()
-    print('| [{}|{}]_test {:.4f} |'.format(args.src, args.trg, test_acc))
+    print('| {}->{} test {:.4f} |'.format(args.src, args.trg, test_acc))
     print_line()
 
 
