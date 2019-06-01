@@ -121,8 +121,8 @@ def main():
         parser.set_defaults(log_interval=20, val_interval=40)
     if args.mwe:
         parser.set_defaults(lr=0.001, lambd_clf=1.)
-    # if len(args.dom) == 1:  # CLIDSA_{min}
-    #     parser.set_defaults(lambd_clf=0.003)
+    if len(args.dom) == 1:  # CLIDSA_{min}
+        parser.set_defaults(lambd_clf=0.003)
     args = parser.parse_args()
     if args.mode == 'eval':
         args = load_config(args.export, args)
