@@ -345,7 +345,7 @@ def train(args):
     print('Training ended with {} steps'.format(step + 1))
     print('Best val acc:              {}->{} {:.4f}'.format(args.src, args.trg, best_acc))
     print('Test acc (w/ early stop):  {}->{} {:.4f}'.format(args.src, args.trg, final_test_acc))
-    print('Test acc (w/o early stop): {}->{} {:.4f}'.format(args.src, args.trg, final_test_acc))
+    print('Test acc (w/o early stop): {}->{} {:.4f}'.format(args.src, args.trg, test_acc))
 
 
 def eval(args):
