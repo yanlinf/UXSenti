@@ -98,7 +98,7 @@ def main():
     parser.add_argument('--max_steps', type=int, default=50000, help='upper step limit')
     parser.add_argument('-bs', '--batch_size', type=int, default=30, help='batch size')
     parser.add_argument('-cbs', '--clf_batch_size', type=int, default=20, help='classification batch size')
-    parser.add_argument('-tbs', '--test_batch_size', type=int, default=100, help='classification batch size')
+    parser.add_argument('-tbs', '--test_batch_size', type=int, default=60, help='classification batch size')
     parser.add_argument('--bptt', type=int, default=70, help='sequence length')
     parser.add_argument('--optimizer', type=str,  default='adam', choices=['adam', 'sgd'], help='optimizer to use (sgd, adam)')
     parser.add_argument('--beta1', type=float, default=0.7, help='beta1 for adam optimizer')
