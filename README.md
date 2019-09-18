@@ -1,15 +1,17 @@
 # UXSenti: Unsupervised Cross-lingual Sentiment Analysis
 
 This repository contains models that perform cross-lingual sentiment analysis (CLSA) in a fully unsupervised setting, without target language annotation or cross-lingual supervision. These models rely on language modeling to transfer the sentiment resources from the source language to the target language. We address two different CLSA settings:
-- Cross-lingual in-domain (e.g. English hotel reviews for training and Chinese hotel review for testing)
+- Cross-lingual in-domain (e.g. English book reviews for training and Japanese book review for testing)
 
-- Cross-lingual cross-domain (e.g. English hotel reviews for training and Chinese book reviews for testing)
+- Cross-lingual cross-domain (e.g. English book reviews for training and Japanese music reviews for testing)
 
 <img src="CLIDSA.png" width="600">
 
 Supported languages: English (en) / French (fr) / German (de) / Japanese (ja)
 
 Supported domains: books / dvd / music
+
+## Citation
 
 ## Dependencies
 
