@@ -116,6 +116,3 @@ To run all the CLCDSA experiments (including CLCDSA and MWE):
 ```bash
 bash run_clcd.sh
 ```
-
-## References
-
