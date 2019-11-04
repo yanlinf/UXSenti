@@ -1,6 +1,6 @@
 # UXSenti: Unsupervised Cross-lingual Sentiment Analysis
 
-This repository contains models that perform cross-lingual sentiment analysis (CLSA) in a fully unsupervised setting, without target language annotation or cross-lingual supervision. These models rely on language modeling to transfer the sentiment resources from the source language to the target language. We address two different CLSA settings:
+This repository contains the source code for the CoNLL2019 paper [Towards a Unified End-to-End Approach for Fully Unsupervised Cross-Lingual Sentiment Analysis](<https://www.aclweb.org/anthology/K19-1097.pdf>). We present models that perform cross-lingual sentiment analysis (CLSA) in a fully unsupervised setting, without target language annotation or cross-lingual supervision. These models rely on language modeling to transfer the sentiment resources from the source language to the target language. We address two different CLSA settings:
 - Cross-lingual in-domain (e.g. English book reviews for training and Japanese book review for testing)
 
 - Cross-lingual cross-domain (e.g. English book reviews for training and Japanese music reviews for testing)
@@ -12,6 +12,19 @@ Supported languages: English (en) / French (fr) / German (de) / Japanese (ja)
 Supported domains: books / dvd / music
 
 ## Citation
+```
+@inproceedings{feng-wan-2019-towards,
+    title = "Towards a Unified End-to-End Approach for Fully Unsupervised Cross-Lingual Sentiment Analysis",
+    author = "Feng, Yanlin  and
+      Wan, Xiaojun",
+    booktitle = "Proceedings of the 23rd Conference on Computational Natural Language Learning (CoNLL)",
+    month = nov,
+    year = "2019",
+    address = "Hong Kong, China",
+    publisher = "Association for Computational Linguistics",
+    url = "https://www.aclweb.org/anthology/K19-1097",
+}
+```
 
 ## Dependencies
 
@@ -25,7 +38,7 @@ Supported domains: books / dvd / music
 
 ### Download / Preprocess Data
 
-Run the following commands to download the amazon review dataset:
+Run the following commands to download the Amazon review dataset:
 
 ```bash
 git clone https://github.com/Evan-Feng/UXSenti.git
